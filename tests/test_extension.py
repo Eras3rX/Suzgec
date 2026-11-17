@@ -80,6 +80,41 @@ def test_server_response_has_the_fields_the_extension_reads():
     assert "5ARZ8D2" not in json.dumps(body)  # сервер значений не возвращает
 
 
+def test_content_script_covers_every_way_a_file_gets_into_the_chat():
+    js = (EXT / "content.js").read_text(encoding="utf-8")
+    for event in ('addEventListener("paste"', 'addEventListener("change"', 'addEventListener("drop"'):
+        assert event in js, event
+    for removed in ('removeEventListener("change"', 'removeEventListener("drop"'):  # и перестаёт вмешиваться при гибели
+        assert removed in js, removed
+    assert "qaralanmis" in js and "file_classified" in js
+
+
+def test_file_requests_go_to_localhost_as_raw_body_with_the_extension_channel():
+    client_js = (EXT / "mask-client.js").read_text(encoding="utf-8")
+    assert '"/api/redact"' in client_js and "application/octet-stream" in client_js
+    assert "isLoopback(server)" in client_js.split("async function redactFile")[1]  # на чужой адрес файл не уйдёт
+    assert 'type === "redact"' in (EXT / "background.js").read_text(encoding="utf-8")
+
+
+def test_server_marks_documents_from_the_extension_as_extension_channel(isolated_audit):
+    import io
+
+    import pytest
+    pymupdf = pytest.importorskip("pymupdf")
+    doc = pymupdf.open(); doc.new_page().insert_text((72, 100), "FIN 5ARZ8D2", fontsize=11)
+    local = TestClient(app, client=("127.0.0.1", 50000))
+    r = local.post("/api/redact", content=doc.tobytes(),
+                   headers={"Content-Type": "application/octet-stream", "X-Suzgec-Client": "extension"})
+    assert r.status_code == 200
+    assert '"channel":"extension"' in isolated_audit.path.read_text(encoding="utf-8")
+    secret = pymupdf.open()
+    secret.new_page().insert_text((72, 100), "Mexfi sened", fontsize=11)
+    blocked = local.post("/api/redact", content=secret.tobytes(),
+                         headers={"Content-Type": "application/octet-stream", "X-Suzgec-Client": "extension"})
+    assert blocked.status_code == 403
+    assert any(i["channel"] == "extension" for i in local.get("/api/admin/incidents").json()["incidents"])
+
+
 def test_extension_tells_the_server_which_channel_it_is_without_sending_text():
     """Заголовок X-Suzgec-Client нужен, чтобы в панели администратора было видно канал «расширение»."""
     client_js = (EXT / "mask-client.js").read_text(encoding="utf-8")

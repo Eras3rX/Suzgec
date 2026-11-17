@@ -21,6 +21,17 @@ async function handle(msg) {
     if (result.ok) await countProtected(result.count);
     return result;
   }
+  if (msg && msg.type === "redact" && typeof msg.data === "string") {
+    var bin = atob(msg.data);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var file = await SuzgecClient.redactFile(bytes, s.server, s.department);
+    if (file.ok) {
+      var total = Object.keys(file.counts).reduce(function (sum, k) { return sum + file.counts[k]; }, 0);
+      await countProtected(total);
+    }
+    return file;
+  }
   if (msg && msg.type === "status") {
     return SuzgecClient.status(s.server);
   }

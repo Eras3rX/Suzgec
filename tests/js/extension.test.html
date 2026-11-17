@@ -23,6 +23,8 @@
     <div id="ce" contenteditable="true"></div>
     <input id="pw" type="password">
     <div id="plain">не поле ввода</div>
+    <input id="fi" type="file" multiple>
+    <div id="dz" style="min-height:30px;border:1px dashed #999">зона перетаскивания</div>
   </div>
 
   <script>
@@ -35,6 +37,11 @@
         id: "test-extension",
         sendMessage: async (msg) => {
           if (window.__mode === "down") return { ok: false, error: "unreachable" };
+          if (msg.type === "redact") {
+            const bin = atob(msg.data);
+            const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+            return SuzgecClient.redactFile(bytes, location.origin);
+          }
           return SuzgecClient.maskText(msg.text, location.origin);
         },
       },
@@ -68,6 +75,27 @@
     // Обработчик «страницы»: видит ли она оригинал вставки.
     const pageSaw = [];
     document.addEventListener("paste", (e) => { pageSaw.push(e.clipboardData ? e.clipboardData.getData("text/plain") : ""); });
+    // Файлы, которые дошли до «сайта» (вставка, выбор файла, перетаскивание): сайт должен видеть только копии.
+    const filesSeen = [];
+    const noteFiles = (list) => Array.from(list || []).forEach((f) => filesSeen.push(f));
+    ce.addEventListener("paste", (e) => noteFiles(e.clipboardData && e.clipboardData.files));
+    ta.addEventListener("paste", (e) => noteFiles(e.clipboardData && e.clipboardData.files));
+    $("fi").addEventListener("change", (e) => noteFiles(e.target.files));
+    $("dz").addEventListener("drop", (e) => { e.preventDefault(); noteFiles(e.dataTransfer && e.dataTransfer.files); });
+    $("dz").addEventListener("dragover", (e) => e.preventDefault());
+
+    // Синтетический документ на canvas (только вымышленные данные).
+    function makeImage(lines, type = "image/png", name = "karta.png") {
+      return new Promise((resolve) => {
+        const c = document.createElement("canvas"); c.width = 900; c.height = 420;
+        const g = c.getContext("2d");
+        g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+        g.fillStyle = "#000"; g.font = "30px Arial, sans-serif";
+        lines.forEach((t, i) => g.fillText(t, 40, 60 + i * 56));
+        c.toBlob((b) => resolve(new File([b], name, { type })), type);
+      });
+    }
+    const CARD = ["Soyadi: Quliyeva", "Adi: Aysel", "FIN: 5ARZ8D2", "Telefon: +994 50 123 45 67"];
 
     const toastBox = () => { const h = document.getElementById("suzgec-toast-host"); return h && h.shadowRoot.querySelector(".box"); };
     const toastText = () => (toastBox() ? toastBox().textContent : "");
@@ -132,9 +160,113 @@
       eq(toastText(), "");
     });
 
-    test("только файл/картинка без текста: не вмешиваемся", async () => {
-      const r = pasteInto(ta, "", [new File(["x"], "a.png", { type: "image/png" })]);
+    test("файл не картинка и не PDF (txt): не вмешиваемся", async () => {
+      const r = pasteInto(ta, "", [new File(["x"], "a.txt", { type: "text/plain" })]);
       eq(r.intercepted, false);
+    });
+
+    test("isCandidate: картинки и PDF по типу и по имени, остальное нет", async () => {
+      const { isCandidate } = window.__suzgecTest;
+      truthy(isCandidate(new File(["x"], "a.png", { type: "image/png" })));
+      truthy(isCandidate(new File(["x"], "scan.PDF", { type: "" })));
+      truthy(isCandidate(new File(["x"], "foto.heic", { type: "" })));
+      truthy(!isCandidate(new File(["x"], "a.txt", { type: "text/plain" })));
+      truthy(!isCandidate(new File(["x"], "a.docx", { type: "" })));
+    });
+
+    test("вставка картинки: сайт получает закрашенную копию, а не оригинал", async () => {
+      filesSeen.length = 0; resetToast();
+      const original = await makeImage(CARD);
+      const r = pasteInto(ce, "", [original]);
+      truthy(r.intercepted, "вставка картинки должна быть перехвачена");
+      truthy(await waitFor(() => filesSeen.length > 0, 60000), "сайт не получил файл");
+      eq(filesSeen.length, 1);
+      truthy(filesSeen[0].name.endsWith("-qaralanmis.png"), filesSeen[0].name);
+      eq(filesSeen[0].type, "image/png");
+      truthy(filesSeen[0] !== original && filesSeen[0].size > 0);
+      truthy(await waitFor(() => toastText().includes("sənəd qaralandı")), toastText());
+    });
+
+    test("закрашенная копия действительно закрашена: на месте значения чёрные пиксели", async () => {
+      const original = await makeImage(["FIN: 5ARZ8D2"]);
+      const res = await window.chrome.runtime.sendMessage({ type: "redact", data: await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.readAsDataURL(original); }) });
+      truthy(res.ok, JSON.stringify(res).slice(0, 120));
+      const img = new Image();
+      const loaded = new Promise((ok, fail) => { img.onload = ok; img.onerror = () => fail(new Error("картинка не загрузилась")); });
+      img.src = "data:" + res.mime + ";base64," + res.data; await loaded;  // не decode(): он иногда не завершается в фоновой вкладке
+      const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+      const g = c.getContext("2d"); g.drawImage(img, 0, 0);
+      // значение начинается правее «FIN:» (примерно с x=110): в его середине всё чёрное
+      const px = g.getImageData(170, 50, 1, 1).data;
+      eq([px[0], px[1], px[2]], [0, 0, 0]);
+    });
+
+    test("кнопка «прикрепить»: сайт видит только копию, исходный файл до него не доходит", async () => {
+      filesSeen.length = 0; resetToast();
+      const dt = new DataTransfer(); dt.items.add(await makeImage(CARD)); dt.items.add(new File(["x"], "a.txt", { type: "text/plain" }));
+      $("fi").files = dt.files;
+      $("fi").dispatchEvent(new Event("change", { bubbles: true }));
+      truthy(await waitFor(() => filesSeen.length >= 2, 60000), "файлы не дошли");
+      eq(filesSeen.map((f) => f.name).sort(), ["a.txt", "karta-qaralanmis.png"]);
+      eq(Array.from($("fi").files).map((f) => f.name).sort(), ["a.txt", "karta-qaralanmis.png"]);
+    });
+
+    test("перетаскивание: сайт получает закрашенную копию", async () => {
+      filesSeen.length = 0; resetToast();
+      const dt = new DataTransfer(); dt.items.add(await makeImage(CARD, "image/png", "drop.png"));
+      const ev = new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true });
+      $("dz").dispatchEvent(ev);
+      truthy(ev.defaultPrevented, "исходное перетаскивание должно быть остановлено");
+      truthy(await waitFor(() => filesSeen.length > 0, 60000), "файл не дошёл");
+      eq(filesSeen.map((f) => f.name), ["drop-qaralanmis.png"]);
+    });
+
+    test("картинка с грифом: не добавляется, предупреждение без текста документа", async () => {
+      filesSeen.length = 0; resetToast();
+      pasteInto(ce, "", [await makeImage(["Mexfi sened", "FIN: 5ARZ8D2"])]);
+      truthy(await waitFor(() => toastText().includes("bloklandı"), 60000), toastText());
+      await wait(300);
+      eq(filesSeen.length, 0);
+      truthy(!toastText().includes(SECRET_FIN));
+    });
+
+    test("формат, который сервер не принимает (GIF): файл не добавляется, причина показана", async () => {
+      filesSeen.length = 0; resetToast();
+      pasteInto(ce, "", [new File([new Uint8Array([71, 73, 70, 56, 57, 97, 1, 0, 1, 0, 0, 0, 0, 59])], "a.gif", { type: "image/gif" })]);
+      truthy(await waitFor(() => toastText().includes("əlavə olunmadı"), 60000), toastText());
+      eq(filesSeen.length, 0);
+    });
+
+    test("слишком большой файл: не отправляется и не добавляется", async () => {
+      filesSeen.length = 0; resetToast();
+      pasteInto(ce, "", [new File([new Uint8Array(11 * 1024 * 1024)], "big.png", { type: "image/png" })]);
+      truthy(await waitFor(() => toastText().includes("çox böyükdür"), 30000), toastText());
+      eq(filesSeen.length, 0);
+    });
+
+    test("сервер недоступен (по умолчанию): файл не добавляется", async () => {
+      filesSeen.length = 0; resetToast(); window.__mode = "down";
+      pasteInto(ce, "", [await makeImage(CARD)]);
+      truthy(await waitFor(() => toastText().includes("əlçatmazdır"), 30000), toastText());
+      eq(filesSeen.length, 0);
+      window.__mode = "real";
+    });
+
+    test("сервер недоступен, режим «как есть»: файл добавляется с предупреждением", async () => {
+      filesSeen.length = 0; resetToast(); window.__mode = "down"; setSetting("blockOnError", false);
+      pasteInto(ce, "", [await makeImage(CARD, "image/png", "asis.png")]);
+      truthy(await waitFor(() => filesSeen.length > 0, 30000), "файл не добавлен");
+      eq(filesSeen[0].name, "asis.png");
+      truthy(toastText().includes("qorunmadan"), toastText());
+      setSetting("blockOnError", true); window.__mode = "real";
+    });
+
+    test("расширение выключено: файлы идут как обычно", async () => {
+      // textarea: у «редактора» ce собственный preventDefault, он помешал бы проверке
+      setSetting("enabled", false);
+      try {
+        eq(pasteInto(ta, "", [new File(["x"], "a.png", { type: "image/png" })]).intercepted, false);
+      } finally { setSetting("enabled", true); }
     });
 
     test("не поле ввода и поле пароля: не вмешиваемся", async () => {

@@ -16,6 +16,7 @@
     department: "", // отдел для статистики: maliyye | hr | huquq | "" (не выбран)
   };
   var TIMEOUT_MS = 8000;
+  var REDACT_TIMEOUT_MS = 120000; // распознавание документа: секунды, а при первом запуске сервера дольше
   var LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "[::1]"];
 
   function isLoopback(url) {
@@ -31,9 +32,9 @@
     return String(server || DEFAULTS.server).replace(/\/+$/, "");
   }
 
-  async function request(server, path, options) {
+  async function request(server, path, options, timeoutMs) {
     var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+    var timer = setTimeout(function () { controller.abort(); }, timeoutMs || TIMEOUT_MS);
     try {
       var init = Object.assign({ cache: "no-store", credentials: "omit", signal: controller.signal }, options || {});
       return await fetch(base(server) + path, init);
@@ -66,6 +67,38 @@
     }
   }
 
+  /**
+   * Закрасить документ (изображение или PDF). bytes: Uint8Array с файлом.
+   * Возвращает {ok, name, mime, data (base64), counts} или {ok:false, error, category?, detail?}.
+   * Файл уходит только на локальный сервер и нигде не сохраняется; в ответе нет значений данных.
+   */
+  async function redactFile(bytes, server, department) {
+    if (!isLoopback(server)) return { ok: false, error: "bad_server" };
+    try {
+      var r = await request(server, "/api/redact", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream", "X-Suzgec-Client": "extension", "X-Department": department || "" },
+        body: bytes,
+      }, REDACT_TIMEOUT_MS);
+      if (r.status === 403) {
+        var blocked = await r.json().catch(function () { return {}; });
+        return { ok: false, error: "classified", category: blocked.category || "" };
+      }
+      if (r.status === 413) return { ok: false, error: "file_too_big" };
+      if (r.status === 429) return { ok: false, error: "rate_limited" };
+      if (r.status === 503) return { ok: false, error: "unavailable" };
+      if (r.status === 422) {
+        var bad = await r.json().catch(function () { return {}; });
+        return { ok: false, error: "unsupported", detail: bad.detail || "" };
+      }
+      if (!r.ok) return { ok: false, error: "server_error" };
+      var data = await r.json();
+      return { ok: true, name: data.file.name, mime: data.file.mime, data: data.file.data, counts: data.counts || {} };
+    } catch (e) {
+      return { ok: false, error: "unreachable" };
+    }
+  }
+
   /** Состояние сервера для всплывающего окна. */
   async function status(server) {
     if (!isLoopback(server)) return { reachable: false, error: "bad_server" };
@@ -79,5 +112,5 @@
     }
   }
 
-  root.SuzgecClient = { DEFAULTS: DEFAULTS, isLoopback: isLoopback, maskText: maskText, status: status };
+  root.SuzgecClient = { DEFAULTS: DEFAULTS, isLoopback: isLoopback, maskText: maskText, redactFile: redactFile, status: status };
 })(typeof self !== "undefined" ? self : this);

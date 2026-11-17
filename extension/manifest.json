@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Süzgəc — AI üçün məlumat filtri",
   "short_name": "Süzgəc",
-  "version": "0.1.0",
-  "description": "chatgpt.com-a yapışdırılan mətndəki şəxsi məlumatları (FİN, IBAN, kart, ad, ünvan...) yerli Süzgəc serverində maskalayır.",
+  "version": "0.2.0",
+  "description": "chatgpt.com-a yapışdırılan mətndəki şəxsi məlumatları (FİN, IBAN, kart, ad, ünvan...) maskalayır, əlavə olunan şəkil və PDF sənədlərdə isə məlumatları, üzü və imzanı qaralayır. Hamısı yerli Süzgəc serverində.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
