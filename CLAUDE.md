@@ -37,7 +37,8 @@ Python 3.11, FastAPI, uvicorn, pydantic, Anthropic SDK, pytest,
 - GET /api/config — доступен ли встроенный AI
 - GET /api/stats — только счётчики по категориям
 - /admin и /api/admin/* — панель администратора: живые счётчики, отделы (Maliyyə, HR, Hüquq), кнопка
-  «100 sintetik cümlə üzrə test» (настоящие Precision/Recall/задержка), журнал блокировок по грифу
+  «100 sintetik cümlə üzrə test» (настоящие Precision/Recall/задержка), журнал блокировок по грифу,
+  вкладка «Audit»: журнал только из HMAC-хешей и времени (GET /api/admin/audit, POST /api/admin/audit/check)
 
 ## Безопасность (оценивается жюри, 25 баллов)
 - Исходный текст и таблица меток живут только в памяти запроса, не сохраняются

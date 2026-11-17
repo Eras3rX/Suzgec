@@ -43,6 +43,8 @@ def assert_no_secrets(text: str):
 def test_code_has_no_storage_or_print():
     forbidden = re.compile(r"\bprint\(|\bopen\(|sqlite3|\bpickle\b|\bshelve\b|write_text|write_bytes")
     for path in Path(main.__file__).parent.glob("*.py"):
+        if path.name == "audit.py":
+            continue  # единственный модуль с записью на диск: журнал аудита (только хеши), см. tests/test_audit.py
         assert not forbidden.search(path.read_text(encoding="utf-8")), path.name
 
 

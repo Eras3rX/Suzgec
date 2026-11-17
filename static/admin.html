@@ -72,6 +72,7 @@
     <button type="button" class="tab" role="tab" id="tab-depts" data-tab="depts" aria-selected="false" aria-controls="panel-depts">Şöbələr</button>
     <button type="button" class="tab" role="tab" id="tab-test" data-tab="test" aria-selected="false" aria-controls="panel-test">Test</button>
     <button type="button" class="tab" role="tab" id="tab-incidents" data-tab="incidents" aria-selected="false" aria-controls="panel-incidents">İnsidentlər<span class="count" id="tab-count" hidden></span></button>
+    <button type="button" class="tab" role="tab" id="tab-audit" data-tab="audit" aria-selected="false" aria-controls="panel-audit">Audit</button>
   </div>
 
   <!-- 1. Canlı say -->
@@ -138,6 +139,41 @@
     <p id="empty" class="empty-text" style="margin-top:8px">Hələ blok olmayıb.</p>
     <p class="small muted" style="margin-top:10px">Jurnal yalnız server yaddaşında saxlanır (son 200 qeyd) və server yenidən başladıqda təmizlənir. <span id="by-category"></span></p>
   </section>
+
+  <!-- 5. Audit -->
+  <section class="tab-panel" id="panel-audit" role="tabpanel" aria-labelledby="tab-audit" hidden>
+    <h2>Sıfır biliklə audit jurnalı</h2>
+    <p class="small muted" style="margin:4px 0 14px;max-width:75ch">Jurnalda FİN, telefon, ad və ya başqa məlumatın özü yoxdur: yalnız gizli açarla hesablanmış HMAC-SHA-256 izi, vaxt, kateqoriya, kanal və şöbə saxlanır. Hər qeyd əvvəlkinin izini daxil edir, buna görə qeydin dəyişdirilməsi və ya silinməsi zəncirin pozulması ilə aşkarlanır.</p>
+
+    <div class="metrics" id="audit-tiles">
+      <div class="metric"><span class="name">Zəncir</span><span class="num" id="audit-chain">—</span></div>
+      <div class="metric"><span class="name">Qeydlərin sayı</span><span class="num" id="audit-total">—</span></div>
+      <div class="metric"><span class="name">Yaddaşdakı cədvəl</span><span class="num" id="audit-active">—</span></div>
+      <div class="metric"><span class="name">Silinmiş cədvəl</span><span class="num" id="audit-wiped">—</span></div>
+    </div>
+    <p class="small muted" id="audit-note" style="margin-top:10px"></p>
+
+    <h3 style="margin-top:22px">Dəyər yoxlanışı</h3>
+    <p class="small muted" style="margin:4px 0 8px;max-width:75ch">Məsələn, FİN daxil edin: sistem onun izini hesablayıb jurnalda axtarır və hadisənin vaxtını göstərir. Daxil edilən dəyər saxlanmır.</p>
+    <label for="audit-value">Yoxlanılan dəyər</label>
+    <input type="text" id="audit-value" autocomplete="off" spellcheck="false" maxlength="200" style="max-width:360px">
+    <div class="actions"><button type="button" class="btn" id="audit-check">Yoxla</button><span id="audit-result" class="muted" role="status"></span></div>
+    <div class="table-scroll" style="margin-top:10px">
+      <table class="data">
+        <thead><tr><th>№</th><th>Vaxt</th><th>Kateqoriya</th><th>Kanal</th><th>Şöbə</th></tr></thead>
+        <tbody id="audit-matches"></tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:22px">Son hadisələr</h3>
+    <div class="table-scroll" style="margin-top:8px">
+      <table class="data">
+        <thead><tr><th>№</th><th>Vaxt</th><th>Hadisə</th><th>Kateqoriya</th><th>İz (HMAC)</th><th>Kanal</th><th>Şöbə</th></tr></thead>
+        <tbody id="audit-rows"></tbody>
+      </table>
+    </div>
+    <p id="audit-empty" class="empty-text" style="margin-top:8px">Hələ qeyd yoxdur.</p>
+  </section>
 </main>
 
 <footer class="site-footer">
@@ -173,7 +209,8 @@
   // ---------- Bölmələr ----------
   function selectTab(name) {
     document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
-    ["live", "depts", "test", "incidents"].forEach((p) => { $("panel-" + p).hidden = p !== name; });
+    ["live", "depts", "test", "incidents", "audit"].forEach((p) => { $("panel-" + p).hidden = p !== name; });
+    if (name === "audit") loadAudit();
   }
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => selectTab(t.dataset.tab)));
 
@@ -353,6 +390,69 @@
       button.disabled = false;
     }
   });
+
+  // ---------- 5. Audit ----------
+  const EVENTS = { detected: "Məlumat tapıldı", blocked: "Qrif bloku" };
+  const dept = (d) => (d === "maliyye" ? "Maliyyə" : d === "huquq" ? "Hüquq" : d === "hr" ? "HR" : "Seçilməyib");
+
+  function auditRow(e, withHash) {
+    const tr = el("tr");
+    const cells = [el("td", "", String(e.seq)), el("td", "", when(e.ts))];
+    if (withHash) cells.push(el("td", "", EVENTS[e.event] || e.event));
+    cells.push(el("td", "", e.category));
+    if (withHash) cells.push(el("td", "", e.digest || "—"));
+    cells.push(el("td", "", CHANNELS[e.channel] || e.channel), el("td", "", dept(e.dept)));
+    tr.append(...cells);
+    return tr;
+  }
+
+  async function loadAudit() {
+    const r = await get("/api/admin/audit?limit=50");
+    if (r.status !== 200) return;
+    const d = r.data;
+    $("audit-chain").textContent = d.chain.ok ? "Bütövdür" : "Pozulub";
+    $("audit-total").textContent = fmt(d.chain.events);
+    $("audit-active").textContent = fmt(d.vault.active);
+    $("audit-wiped").textContent = fmt(d.vault.wiped);
+    let note = d.chain.ok
+      ? "Zəncir yoxlandı: " + d.chain.events + " qeyd, dəyişiklik aşkarlanmayıb."
+      : "Diqqət: zəncir " + d.chain.broken_at + "-ci qeyddə pozulub, jurnal dəyişdirilib.";
+    if (!d.healthy) note += " Son yazma uğursuz oldu: jurnal hazırda yazılmır.";
+    note += " Açar mənbəyi: " + (d.key_source === "env" ? "AUDIT_KEY dəyişəni" : "server faylı data/audit/audit.key") + ".";
+    $("audit-note").textContent = note;
+    $("audit-rows").replaceChildren(...d.events.map((e) => auditRow(e, true)));
+    $("audit-empty").hidden = d.events.length > 0;
+  }
+
+  async function checkValue() {
+    const value = $("audit-value").value.trim();
+    if (!value) { $("audit-result").textContent = "Dəyər daxil edin."; return; }
+    $("audit-result").textContent = "Yoxlanılır…";
+    try {
+      const r = await fetch("/api/admin/audit/check", {
+        method: "POST", cache: "no-store",
+        headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
+        body: JSON.stringify({ value }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { $("audit-result").textContent = data.detail || "Yoxlama alınmadı."; return; }
+      $("audit-result").textContent = data.found
+        ? "Jurnalda tapıldı: " + data.count + " dəfə."
+        : "Bu dəyər jurnalda tapılmadı.";
+      $("audit-matches").replaceChildren(...data.matches.map((m) => {
+        const tr = el("tr");
+        tr.append(el("td", "", String(m.seq)), el("td", "", when(m.ts)), el("td", "", m.category),
+          el("td", "", CHANNELS[m.channel] || m.channel), el("td", "", dept(m.dept)));
+        return tr;
+      }));
+    } catch (e) {
+      $("audit-result").textContent = "Serverlə əlaqə yoxdur.";
+    }
+    $("audit-value").value = "";  // yoxlanılan dəyər ekranda qalmasın
+  }
+  $("audit-check").addEventListener("click", checkValue);
+  $("audit-value").addEventListener("keydown", (e) => { if (e.key === "Enter") checkValue(); });
+  setInterval(() => { if (!$("panel-audit").hidden) loadAudit(); }, 5000);
 
   $("ack").addEventListener("click", () => { ackId = lastId; renderIncidents(); });
   $("login-btn").addEventListener("click", () => { token = $("token").value; lastId = 0; incidents = []; poll(); });

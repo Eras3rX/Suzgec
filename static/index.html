@@ -39,6 +39,7 @@
 </header>
 <div class="statusbar">
   <div class="bar">
+    <span id="ai-chip" class="status" role="status"><span class="status-dot"></span><span id="ai-text">Daxili AI yoxlanılır…</span></span>
     <span id="model-chip" class="status" role="status"><span class="status-dot"></span><span id="model-text">AI modeli yoxlanılır…</span></span>
     <span>Mətnlər serverdə saxlanmır</span>
   </div>
@@ -111,10 +112,10 @@
         <p class="step-hint">Süzgəcdən keçmiş mətni kopyalayın və istifadə etdiyiniz süni intellekt xidmətinə (ChatGPT, Claude və s.) yapışdırın. AI yalnız etiketləri görəcək.</p>
         <div class="actions" style="margin-top:0">
           <button type="button" class="btn" id="copy-masked" disabled>Mətni kopyala</button>
-          <button type="button" class="btn btn-secondary" id="send" hidden>Daxili AI-yə göndər</button>
+          <button type="button" class="btn btn-secondary" id="send" disabled>Daxili AI-yə göndər</button>
         </div>
         <div id="err-send" class="notice notice-block" role="alert" hidden></div>
-        <p class="small muted" id="send-hint" hidden style="margin-top:10px">Daxili AI serverdə quraşdırılıb: mətn süzgəcdən keçirildikdən sonra birbaşa göndərilir, cavab avtomatik bərpa olunur.</p>
+        <p class="small muted" id="send-hint" style="margin-top:10px">Daxili AI üçün serverdə API açarı lazımdır (.env faylında ANTHROPIC_API_KEY və ya pulsuz xidmət üçün LLM_API_KEY). Açar olmadan mətni əl ilə kopyalayın.</p>
       </div>
     </li>
 
@@ -477,7 +478,10 @@
   async function loadConfig() {
     try {
       const c = await (await fetch("/api/config")).json();
-      if (c.ai_available) { $("send").hidden = false; $("send-hint").hidden = false; }
+      $("send").disabled = !c.ai_available;
+      $("ai-text").textContent = c.ai_available ? "Daxili AI: qoşulub" : "Daxili AI: API açarı təyin edilməyib";
+      $("ai-chip").className = "status" + (c.ai_available ? " status-ready" : "");
+      if (c.ai_available) $("send-hint").textContent = "Daxili AI qoşulub: mətn süzgəcdən keçirildikdən sonra birbaşa göndərilir, cavab avtomatik bərpa olunur.";
       const [text, cls] = MODEL[c.model] || MODEL.off;
       $("model-text").textContent = text;
       $("model-chip").className = "status" + (cls ? " " + cls : "");

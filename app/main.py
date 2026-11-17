@@ -22,11 +22,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import evaluation, ml_detector
+from app.audit import AuditLog
 from app.detector import CLASSIFICATION_NAMES, classify, detect
 from app.incidents import IncidentLog
 from app.llm import LLMError, ai_enabled, ask_llm
 from app.masker import mask, restore_tolerant
 from app.ratelimit import RateLimiter
+from app.vault import TemporaryVault
 
 MAX_TEXT_LENGTH = 5000
 MAX_BODY_BYTES = 64 * 1024  # 5000 символов даже с экранированием JSON укладываются с запасом
@@ -38,7 +40,31 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 limiter = RateLimiter(RATE_LIMIT_PER_MINUTE, 60.0)
 incidents = IncidentLog()  # журнал блокировок по грифу: время, категория, канал (без текста)
+audit = AuditLog()  # журнал аудита на диске: только HMAC-хеши и время, без значений
 _log = logging.getLogger("suzgec")
+
+
+def _audit_detected(masked, channel: str, request: Request, department: str | None) -> None:
+    """Записать в журнал аудита хеши найденных значений. Сбой журнала не должен ломать работу пользователя."""
+    if request.headers.get("x-suzgec-client", "").lower() == "extension":
+        channel = "extension"
+    # категория берётся из метки: "[FIN_1]" -> "FIN"
+    items = [(label[1:-1].rsplit("_", 1)[0], value) for label, value in masked.mapping.items()]
+    try:
+        audit.record_detected(items, channel, _department(department))
+        audit.healthy = True
+    except Exception as exc:  # noqa: BLE001
+        audit.healthy = False
+        _log.error("audit write failed: %s", type(exc).__name__)  # только тип ошибки, без данных
+
+
+def _audit_blocked(category_name: str, channel: str, department: str) -> None:
+    try:
+        audit.record_blocked(category_name, channel, department)
+        audit.healthy = True
+    except Exception as exc:  # noqa: BLE001
+        audit.healthy = False
+        _log.error("audit write failed: %s", type(exc).__name__)
 
 
 @asynccontextmanager
@@ -187,6 +213,7 @@ def _block_classified(text: str, channel: str, request: Request, department: str
         _dept_counts[dept]["requests"] += 1
         _dept_counts[dept]["blocked"] += 1
     incidents.add(category, name, channel)
+    _audit_blocked(name, channel, dept)
     return JSONResponse(
         status_code=403,
         content={"detail": _blocked_message(category), "blocked": True, "category": name},
@@ -222,6 +249,9 @@ def mask_only(body: TextIn, request: Request):
     if blocked:
         return blocked
     masked = mask(body.text)
+    # Таблица меток здесь нужна только для журнала аудита (хеши); сразу после этого она стирается.
+    with TemporaryVault(masked.mapping):
+        _audit_detected(masked, "mask", request, body.department)
     _count_protected(masked, body.department)
     return {
         "masked_text": masked.masked_text,
@@ -246,20 +276,22 @@ def chat(body: TextIn, request: Request):
     if not _reserve_llm_call():
         raise HTTPException(status_code=429, detail="Gündəlik demo limiti bitib. Sabah yenidən cəhd edin.")
 
-    masked = mask(body.text)  # таблица меток живёт только внутри этого вызова
-    try:
-        raw_answer = ask_llm(masked.masked_text)
-    except LLMError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    _count_protected(masked, body.department)
-
-    answer, info = restore_tolerant(raw_answer, masked.mapping)
+    masked = mask(body.text)
+    # Таблица меток живёт только внутри этого блока и стирается при любом выходе из него (успех, ошибка AI).
+    with TemporaryVault(masked.mapping):
+        _audit_detected(masked, "chat", request, body.department)
+        try:
+            raw_answer = ask_llm(masked.masked_text)
+        except LLMError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        _count_protected(masked, body.department)
+        answer, info = restore_tolerant(raw_answer, masked.mapping)
+        warnings = _restore_warnings(info, len(masked.mapping))
     return {
         "masked_text": masked.masked_text,
         "answer": answer,
         "found": dict(masked.counts),
-        "warnings": _restore_warnings(info, len(masked.mapping)),
+        "warnings": warnings,
     }
 
 
@@ -342,7 +374,33 @@ def admin_stats(request: Request):
             "blocked_categories": dict(_blocked_categories),
             "sources": dict(_source_counts),
             "departments": departments,
+            "vault": TemporaryVault.stats(),
         }
+
+
+class ValueIn(BaseModel):
+    value: str = Field(min_length=1, max_length=200)
+
+
+@app.get("/api/admin/audit")
+def admin_audit(request: Request, limit: int = 50):
+    """Журнал аудита: состояние цепочки и последние события. Значений в журнале нет, только сокращённые HMAC."""
+    require_admin(request)
+    limit = max(1, min(limit, 200))
+    return {
+        "chain": audit.verify_chain(),
+        "healthy": audit.healthy,
+        "key_source": audit.key_source or ("env" if os.getenv("AUDIT_KEY") else "file"),
+        "vault": TemporaryVault.stats(),
+        "events": audit.recent(limit),
+    }
+
+
+@app.post("/api/admin/audit/check")
+def admin_audit_check(body: ValueIn, request: Request):
+    """Встречалось ли это значение? Считаем HMAC введённого значения и ищем в журнале; само значение не сохраняется."""
+    require_admin(request)
+    return audit.check_value(body.value)
 
 
 _eval_lock = Lock()
