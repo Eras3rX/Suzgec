@@ -12,3 +12,7 @@ data/audit/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Временные файлы публичной ссылки (START-DEMO.bat)
+tunnel.log
+demo-link.txt

@@ -18,6 +18,8 @@ def no_real_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_VISION_MODEL", raising=False)  # .env разработчика не должен менять результаты тестов
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)  # токен из .env закрыл бы «локальную» панель в тестах
+    monkeypatch.delenv("AUDIT_KEY", raising=False)
     monkeypatch.setenv("PII_MODEL_ENABLED", "0")  # тяжёлую модель в обычных тестах не грузим
     main.limiter.reset()
     yield
