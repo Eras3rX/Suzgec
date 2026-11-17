@@ -359,6 +359,16 @@ _NOT_NAME_WORDS = {
 }
 # Кириллические окончания фамилий: для них «подсказкой» служит заглавное слово слева (имя).
 _CYR_SURNAME_ENDINGS = ("ов", "ова", "ев", "ева")
+# Обычные слова, которые в тексте, набранном целиком строчными, не должны приниматься за имя перед фамилией.
+_LOWER_STOP = {
+    _az_key(w)
+    for w in (
+        "mən", "sən", "biz", "siz", "onlar", "bu", "şu", "və", "ilə", "dedi", "deyir", "gəldi", "getdi",
+        "bir", "iki", "üç", "necə", "neçə", "nə", "kim", "haqqında", "üçün", "sonra", "əvvəl", "indi", "bugün",
+        "dünən", "sabah", "siyahı", "siyahıda", "ancaq", "amma", "lakin", "yalnız", "hər", "bütün",
+        "это", "что", "как", "для", "при", "его", "она", "они", "все", "был", "была", "были", "есть", "нет",
+    )
+}
 
 
 def _name_like(word: str) -> bool:
@@ -399,17 +409,38 @@ def _find_names(text: str) -> list[tuple[int, int]]:
     # 1б. Незнакомое имя прямо перед фамилией: «Али Алиев», «Maqa Əliyev». Слово слева с заглавной,
     #     не в начале предложения и не должность/обращение — считаем именем. Это же «включает»
     #     кириллическую фамилию на -ов/-ев, которой иначе нужно было бы имя из словаря.
+    #     Если весь текст набран строчными («siyahı: əli əliyev, maqa əliyev»), заглавной буквы ждать нельзя:
+    #     имя и фамилию узнаём по соседству, а обычные слова отсекает список _LOWER_STOP.
+    all_lower = not any(ch.isupper() for ch in text)
+    surname_kinds = ("strong", "weak", "strong_lc") if all_lower else ("strong", "weak")
     for i, t in enumerate(toks):
-        if t[4] not in ("strong", "weak") or i == 0:
+        if t[4] not in surname_kinds or i == 0:
             continue
         c = toks[i - 1]
-        if c[4] is not None or not _name_like(c[2]) or c[3] in _NOT_NAME_WORDS:
+        if c[4] is not None or c[3] in _NOT_NAME_WORDS:
+            continue
+        if not (_name_like(c[2]) or (all_lower and len(c[2]) >= 2 and c[2].isalpha() and c[3] not in _LOWER_STOP)):
             continue
         if c[1] >= t[0] or text[c[1]:t[0]].strip(" \t") != "" or _sentence_start(text, c[0]):
             continue
         c[4] = "guess"
-        if t[4] == "weak" and t[3].endswith(_CYR_SURNAME_ENDINGS):
+        if t[4] == "strong_lc" or (t[4] == "weak" and t[3].endswith(_CYR_SURNAME_ENDINGS)):
             t[4] = "strong_ctx"
+
+    # 1в. Слабая фамилия («-li», кириллическое -ов без подсказки) остаётся в ФИО, только если рядом настоящее
+    #     имя из словаря: иначе «Hörmətli Toğrul Məmmədov» захватило бы слово «Hörmətli».
+    for i, t in enumerate(toks):
+        if t[4] != "weak":
+            continue
+        near = [
+            toks[j][4]
+            for j in (i - 1, i + 1)
+            if 0 <= j < len(toks)
+            and toks[min(i, j)][1] < toks[max(i, j)][0]
+            and text[toks[min(i, j)][1]:toks[max(i, j)][0]].strip(" \t") == ""
+        ]
+        if not any(k in ("first", "first_lc") for k in near):
+            t[4] = None
 
     # 2. Склеиваем соседние слова-имена (через пробел) в одно ФИО.
     groups: list[tuple[int, int, set[str]]] = []

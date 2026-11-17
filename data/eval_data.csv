@@ -92,3 +92,10 @@ N27,az,"Müəllim şagirdlərə riyaziyyat mövzusunu izah etdi, sonra sual-cava
 N28,ru,"Совещание в Баку прошло успешно, участвовали 25 человек.",
 N29,az,"Salam, necəsiniz? Bu gün iş günüdür.",
 N30,ru,"Проект завершён, отчёт отправлен руководителю.",
+P64,az,Nigar Qasımova ilə FİN 6P2Q8RS barədə danışdıq.,AD=Nigar Qasımova|FIN=6P2Q8RS
+P65,az,Müştərinin kartı 5105 1051 0510 5100 bloklandı.,KART=5105 1051 0510 5100
+P66,ru,Позвоните Тофику Исмаилову по номеру 055 111 22 33.,AD=Тофику Исмаилову|TEL=055 111 22 33
+P67,az,Hesabat Aysel Rzayevaya təqdim edilib.,AD=Aysel Rzayevaya
+P68,az,"E-poçt: sevil.mammadova@example.org, tel: 070 555 44 33.",EMAIL=sevil.mammadova@example.org|TEL=070 555 44 33
+P69,az,VÖEN: 1500123456 olan şirkətin direktoru Kənan Əhmədov idi.,VOEN=1500123456|AD=Kənan Əhmədov
+P70,az,"Sənəd 15.06.2023 tarixində Gəncə şəhəri, Atatürk prospekti 77 ünvanında imzalanıb.","TARIX=15.06.2023|ADRES=Gəncə şəhəri, Atatürk prospekti 77"

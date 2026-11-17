@@ -58,6 +58,7 @@
     .chip.ready { background: var(--good-bg); color: var(--good); }
     .chip.loading { background: var(--warn-bg); color: var(--warn); }
     .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+    .chk select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); }
     mark.alt { background: var(--bad-bg); outline: 1px solid var(--bad); color: var(--bad); }
     .blocked { background: var(--bad-bg); border: 1px solid #fecdca; color: var(--bad); border-radius: 8px; padding: 12px; font-weight: 600; }
     .step { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
@@ -91,6 +92,14 @@
     <div class="row">
       <button id="example" class="small">Заполнить пример</button>
       <button id="example-secret" class="small">Пример с грифом «Məxfi»</button>
+      <label class="chk">Отдел (Şöbə):
+        <select id="dept" title="Нужен только для статистики по отделам: учитываются числа, тексты не сохраняются">
+          <option value="">— не выбран —</option>
+          <option value="maliyye">Maliyyə</option>
+          <option value="hr">HR</option>
+          <option value="huquq">Hüquq</option>
+        </select>
+      </label>
       <label class="chk"><input type="checkbox" id="show-src" checked> показывать, кто нашёл</label>
       <span class="counter" id="counter">0 / 5000</span>
     </div>
@@ -177,7 +186,7 @@
     <div class="note" style="margin-bottom:10px">Только счётчики по категориям. Тексты не сохраняются и не показываются.</div>
     <div id="totals" class="totals"></div>
     <div id="stats"></div>
-    <div class="note" style="margin-top:10px"><a href="/admin">Панель администратора</a>: уведомления о блокировках по грифу (доступна только с этого компьютера).</div>
+    <div class="note" style="margin-top:10px"><a href="/admin" target="_blank" rel="noopener">Панель администратора ↗</a> (открывается в отдельной вкладке): живые счётчики, статистика по отделам, тест точности и уведомления о блокировках по грифу. Доступна только с этого компьютера.</div>
   </section>
 </div>
 
@@ -267,7 +276,8 @@
   }
 
   async function postJson(url, text) {
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    // Отдел идёт вместе с запросом только ради статистики (числа по отделам в панели администратора).
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, department: $("dept").value || null }) });
     let data = {};
     try { data = await r.json(); } catch (e) { /* пустой ответ */ }
     return { ok: r.ok, status: r.status, data };

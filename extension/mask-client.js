@@ -13,6 +13,7 @@
     enabled: true, // выключатель расширения
     blockOnError: true, // если сервер недоступен: true — не вставлять текст, false — вставить как есть
     server: "http://127.0.0.1:8000",
+    department: "", // отдел для статистики: maliyye | hr | huquq | "" (не выбран)
   };
   var TIMEOUT_MS = 8000;
   var LOOPBACK_HOSTS = ["127.0.0.1", "localhost", "[::1]"];
@@ -42,14 +43,14 @@
   }
 
   /** Замаскировать текст. Возвращает {ok, masked, count} или {ok:false, error}. */
-  async function maskText(text, server) {
+  async function maskText(text, server, department) {
     if (!isLoopback(server)) return { ok: false, error: "bad_server" };
     try {
       var r = await request(server, "/api/mask", {
         method: "POST",
         // X-Suzgec-Client: чтобы в панели администратора был виден канал «расширение» (текст не передаётся)
         headers: { "Content-Type": "application/json", "X-Suzgec-Client": "extension" },
-        body: JSON.stringify({ text: text }),
+        body: JSON.stringify({ text: text, department: department || null }),
       });
       if (r.status === 403) {
         var blocked = await r.json().catch(function () { return {}; });

@@ -230,12 +230,12 @@ def test_admin_page_is_served_with_the_critical_alert():
     r = client.get("/admin")
     assert r.status_code == 200
     html = r.text
-    assert "КРИТИЧНО" in html and 'class="alert"' in html and "#b42318" in html  # красное критическое уведомление
+    assert "KRİTİK" in html and 'class="alert"' in html and "#b42318" in html  # красное критическое уведомление
     assert "/api/admin/incidents" in html
 
 
 def test_admin_page_shows_time_category_channel_and_never_renders_html():
     html = (main.STATIC_DIR / "admin.html").read_text(encoding="utf-8")
-    for needle in ("Время", "Гриф", "Канал", "category_name", "toLocaleString"):
+    for needle in ("Vaxt", "Qrif", "Kanal", "category_name", "toLocaleString"):
         assert needle in html
     assert "innerHTML" not in html and "localStorage" not in html and "document.write" not in html

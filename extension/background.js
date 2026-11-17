@@ -17,7 +17,7 @@ async function countProtected(count) {
 async function handle(msg) {
   var s = await settings();
   if (msg && msg.type === "mask" && typeof msg.text === "string") {
-    var result = await SuzgecClient.maskText(msg.text, s.server);
+    var result = await SuzgecClient.maskText(msg.text, s.server, s.department);
     if (result.ok) await countProtected(result.count);
     return result;
   }

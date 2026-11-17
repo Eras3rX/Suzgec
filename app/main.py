@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app import ml_detector
+from app import evaluation, ml_detector
 from app.detector import CLASSIFICATION_NAMES, classify, detect
 from app.incidents import IncidentLog
 from app.llm import LLMError, ai_enabled, ask_llm
@@ -57,6 +57,19 @@ _source_counts: Counter = Counter()  # кто находил: rule / ai / rule+a
 _totals: Counter = Counter()
 _daily = {"day": None, "count": 0}  # сколько раз сегодня (UTC) звали настоящий AI
 
+# Отделы: только счётчики (запросы, блокировки, защищённые данные по категориям). Ни текстов, ни имён пользователей.
+DEPARTMENTS = {"maliyye": "Maliyyə", "hr": "HR", "huquq": "Hüquq"}
+_DEPT_ALIASES = {"maliyyə": "maliyye", "maliyye": "maliyye", "hr": "hr", "hüquq": "huquq", "huquq": "huquq"}
+NO_DEPARTMENT = "none"
+NO_DEPARTMENT_NAME = "Seçilməyib"
+_dept_counts: dict[str, Counter] = {d: Counter() for d in [*DEPARTMENTS, NO_DEPARTMENT]}
+_dept_categories: dict[str, Counter] = {d: Counter() for d in [*DEPARTMENTS, NO_DEPARTMENT]}
+
+
+def _department(value: str | None) -> str:
+    """Отдел из запроса: известный (по id или названию) либо «не выбран». Мусор не принимаем."""
+    return _DEPT_ALIASES.get((value or "").strip().lower(), NO_DEPARTMENT)
+
 
 def _reserve_llm_call() -> bool:
     """Занять одну из дневных попыток вызова AI."""
@@ -72,6 +85,7 @@ def _reserve_llm_call() -> bool:
 
 class TextIn(BaseModel):
     text: str = Field(min_length=1, max_length=MAX_TEXT_LENGTH)
+    department: str | None = None  # отдел, выбранный пользователем (только для статистики; неизвестное = «не выбран»)
 
 
 def _error(status: int, detail: str, headers: dict | None = None) -> JSONResponse:
@@ -144,7 +158,7 @@ def check(body: TextIn):
     }
 
 
-def _block_classified(text: str, channel: str, request: Request) -> JSONResponse | None:
+def _block_classified(text: str, channel: str, request: Request, department: str | None = None) -> JSONResponse | None:
     """Текст с грифом блокируется целиком: не маскируется, в AI не уходит.
 
     Записываем в журнал инцидентов время, категорию и канал (без текста) и отвечаем 403.
@@ -155,10 +169,13 @@ def _block_classified(text: str, channel: str, request: Request) -> JSONResponse
     if request.headers.get("x-suzgec-client", "").lower() == "extension":
         channel = "extension"
     name = CLASSIFICATION_NAMES[category]
+    dept = _department(department)
     with _stats_lock:
         _totals["requests"] += 1
         _totals["blocked"] += 1
         _blocked_categories[name] += 1
+        _dept_counts[dept]["requests"] += 1
+        _dept_counts[dept]["blocked"] += 1
     incidents.add(category, name, channel)
     return JSONResponse(
         status_code=403,
@@ -172,6 +189,17 @@ def config():
     return {"ai_available": ai_enabled(), "model": ml_detector.status()}
 
 
+def _count_protected(masked, department: str | None) -> None:
+    """Учесть успешный запрос: только числа по категориям, источникам и отделу."""
+    dept = _department(department)
+    with _stats_lock:
+        _totals["requests"] += 1
+        _category_counts.update(masked.counts)
+        _source_counts.update(masked.source_counts)
+        _dept_counts[dept]["requests"] += 1
+        _dept_categories[dept].update(masked.counts)
+
+
 @app.post("/api/mask")
 def mask_only(body: TextIn, request: Request):
     """Режим «копировать и вставить»: замаскировать текст, AI не вызывается.
@@ -180,14 +208,11 @@ def mask_only(body: TextIn, request: Request):
     (spans). Таблицу «метка → значение» браузер собирает сам из текста, который пользователь
     уже держит у себя, и хранит только в памяти вкладки.
     """
-    blocked = _block_classified(body.text, "mask", request)
+    blocked = _block_classified(body.text, "mask", request, body.department)
     if blocked:
         return blocked
     masked = mask(body.text)
-    with _stats_lock:
-        _totals["requests"] += 1
-        _category_counts.update(masked.counts)
-        _source_counts.update(masked.source_counts)
+    _count_protected(masked, body.department)
     return {
         "masked_text": masked.masked_text,
         "spans": [
@@ -200,7 +225,7 @@ def mask_only(body: TextIn, request: Request):
 
 @app.post("/api/chat")
 def chat(body: TextIn, request: Request):
-    blocked = _block_classified(body.text, "chat", request)
+    blocked = _block_classified(body.text, "chat", request, body.department)
     if blocked:
         return blocked
     if not ai_enabled():
@@ -217,10 +242,7 @@ def chat(body: TextIn, request: Request):
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    with _stats_lock:
-        _totals["requests"] += 1
-        _category_counts.update(masked.counts)
-        _source_counts.update(masked.source_counts)
+    _count_protected(masked, body.department)
 
     answer, info = restore_tolerant(raw_answer, masked.mapping)
     return {
@@ -284,3 +306,46 @@ def admin_incidents(request: Request, since: int = 0):
     """Блокировки по грифу: время, категория, канал. Текста документов здесь нет и быть не может."""
     require_admin(request)
     return {"incidents": incidents.since(since), **incidents.summary()}
+
+
+@app.get("/api/admin/stats")
+def admin_stats(request: Request):
+    """Живые счётчики для панели администратора: по категориям, блокировкам и отделам. Только числа."""
+    require_admin(request)
+    with _stats_lock:
+        departments = []
+        for dept_id, name in [*DEPARTMENTS.items(), (NO_DEPARTMENT, NO_DEPARTMENT_NAME)]:
+            cats = dict(_dept_categories[dept_id])
+            departments.append({
+                "id": dept_id,
+                "name": name,
+                "requests": _dept_counts[dept_id]["requests"],
+                "blocked": _dept_counts[dept_id]["blocked"],
+                "protected": sum(cats.values()),
+                "categories": cats,
+            })
+        return {
+            "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "requests": _totals["requests"],
+            "blocked": _totals["blocked"],
+            "categories": dict(_category_counts),
+            "blocked_categories": dict(_blocked_categories),
+            "sources": dict(_source_counts),
+            "departments": departments,
+        }
+
+
+_eval_lock = Lock()
+
+
+@app.post("/api/admin/eval")
+def admin_eval(request: Request):
+    """Кнопка «100 sintetik cümlə üzrə test»: прогоняет детектор по 100 синтетическим фразам и отдаёт
+    настоящие Precision, Recall и задержку. Только числа; на обычные счётчики и журнал не влияет."""
+    require_admin(request)
+    if not _eval_lock.acquire(blocking=False):
+        return _error(409, "Test artıq işləyir. Bir az gözləyin.")
+    try:
+        return evaluation.evaluate_all()
+    finally:
+        _eval_lock.release()

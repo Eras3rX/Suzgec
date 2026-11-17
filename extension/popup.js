@@ -36,6 +36,10 @@
     $("enabled").checked = s.enabled;
     $("block").checked = s.blockOnError;
     $("server").value = s.server;
+    $("department").value = s.department || "";
+    $("department").addEventListener("change", function () {
+      chrome.storage.local.set({ department: $("department").value });
+    });
 
     $("enabled").addEventListener("change", function () {
       chrome.storage.local.set({ enabled: $("enabled").checked });

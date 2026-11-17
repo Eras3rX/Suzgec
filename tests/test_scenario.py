@@ -158,3 +158,46 @@ def test_masking_is_the_same_in_copy_paste_mode():
     assert r["masked_text"] == "Сколько человек в списке? Список: [AD_1], [AD_2], [AD_3]"
     assert "Алиев" not in str(r) and "Мурадов" not in str(r)
     assert mask(RU).masked_text == r["masked_text"]
+
+
+# ---------- Всё строчными: «siyahı: əli əliyev, maqa əliyev, ilham muradov» ----------
+
+LOWER = "siyahıda neçə nəfər? siyahı: əli əliyev, maqa əliyev, ilham muradov"
+LOWER_NAMES = ["əli əliyev", "maqa əliyev", "ilham muradov"]
+
+
+def test_lowercase_list_of_names_is_fully_found():
+    assert names(LOWER) == LOWER_NAMES
+
+
+@pytest.mark.parametrize("text", [
+    "mən məmmədov deyirəm",            # «mən» — местоимение, не имя
+    "bu əliyevin evidir",              # «əliyevin» не фамилия в чистом виде, «bu» — стоп-слово
+    "siyahıda neçə nəfər var?",
+    "neçə nəfər gəldi? sonra məmmədov",
+])
+def test_lowercase_text_without_real_names_is_left_alone(text):
+    assert names(text) in ([], ["məmmədov"]) and "mən" not in " ".join(names(text))
+
+
+def test_lowercase_rule_does_not_change_normal_text():
+    """В обычном тексте с заглавными поведение прежнее: одинокое строчное слово перед фамилией не имя."""
+    assert names("Bu gün dedi Əliyev gəldi.") == ["Əliyev"]
+
+
+def test_greeting_before_a_name_is_not_swallowed():
+    """«Hörmətli» (слабое окончание -li) не должно приклеиваться к «Toğrul Məmmədov»."""
+    assert names("Hörmətli Toğrul Məmmədov, hesabınız bloklandı.") == ["Toğrul Məmmədov"]
+
+
+def test_weak_surname_still_works_next_to_a_dictionary_name():
+    assert names("Bu gün Samir Hüseynli gəldi.") == ["Samir Hüseynli"]
+
+
+def test_end_to_end_lowercase_request_and_ad1_ad2_ad3_answer(monkeypatch):
+    body, received = run_chat(monkeypatch, LOWER, "siyahıda 3 nəfər var, bunlar Ad1, Ad2, Ad3")
+    for word in ("əli", "əliyev", "maqa", "ilham", "muradov"):
+        assert word not in received[0].replace("siyahı", "").replace("neçə", ""), word
+    assert received[0] == "siyahıda neçə nəfər? siyahı: [AD_1], [AD_2], [AD_3]"
+    assert body["answer"] == "siyahıda 3 nəfər var, bunlar " + ", ".join(LOWER_NAMES)
+    assert len(body["warnings"]) == 1 and "изменил запись меток" in body["warnings"][0]
