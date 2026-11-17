@@ -1,31 +1,48 @@
-"""Тесты API (синтетические данные, демо-режим без ключа API)."""
-import pytest
+"""Тесты API (синтетические данные, настоящий AI не вызывается)."""
+import re
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
-from app.main import MAX_TEXT_LENGTH, app, limiter
+from app.main import MAX_TEXT_LENGTH, app
 
 client = TestClient(app)
 
-
-@pytest.fixture(autouse=True)
-def demo_mode(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    # load_dotenv() мог подтянуть ключ из реального .env — для тестов он не нужен.
-    limiter.reset()
+TEXT = "Mən Elvin Məmmədov, FİN 1A2B3C4, tel +994 50 123 45 67"
 
 
-def test_index_page_served():
+def test_index_page_and_script_served():
     r = client.get("/")
-    assert r.status_code == 200
-    assert "Süzgəc" in r.text
+    assert r.status_code == 200 and "Süzgəc" in r.text
+    assert client.get("/static/restore.js").status_code == 200
+
+
+def test_pages_do_not_use_browser_storage():
+    """Таблица меток живёт только в памяти вкладки: никакого localStorage, куки, IndexedDB."""
+    pattern = re.compile(r"localStorage\.|sessionStorage\.|document\.cookie|indexedDB")
+    for path in (Path("static/index.html"), Path("static/restore.js")):
+        assert not pattern.search(path.read_text(encoding="utf-8")), path.name
+
+
+# ---------- /api/config ----------
+
+
+def test_config_ai_unavailable_without_key():
+    assert client.get("/api/config").json() == {"ai_available": False}
+
+
+def test_config_ai_available_with_key(ai_on):
+    assert client.get("/api/config").json() == {"ai_available": True}
+
+
+# ---------- /api/check ----------
 
 
 def test_check_returns_positions_without_values():
-    text = "Elvin Məmmədov, FİN 1A2B3C4"
-    r = client.post("/api/check", json={"text": text})
+    r = client.post("/api/check", json={"text": TEXT})
     body = r.json()
     assert r.status_code == 200 and not body["blocked"]
-    assert {f["category"] for f in body["findings"]} == {"AD", "FIN"}
+    assert {f["category"] for f in body["findings"]} == {"AD", "FIN", "TEL"}
     assert all(set(f) == {"category", "start", "end"} for f in body["findings"])
 
 
@@ -33,38 +50,86 @@ def test_check_flags_classified():
     assert client.post("/api/check", json={"text": "Məxfi sənəd"}).json()["blocked"] is True
 
 
-def test_chat_masks_and_restores():
-    text = "Mən Elvin Məmmədov, FİN 1A2B3C4"
-    r = client.post("/api/chat", json={"text": text})
+# ---------- /api/mask: основной режим, ключ не нужен ----------
+
+
+def test_mask_works_without_key_and_returns_no_original_values():
+    r = client.post("/api/mask", json={"text": TEXT})
     body = r.json()
-    assert r.status_code == 200 and body["demo"] is True
+    assert r.status_code == 200
+    assert body["masked_text"] == "Mən [AD_1], FİN [FIN_1], tel [TEL_1]"
+    assert body["found"] == {"AD": 1, "FIN": 1, "TEL": 1}
+    for secret in ("Elvin", "Məmmədov", "1A2B3C4", "+994 50 123 45 67"):
+        assert secret not in r.text  # сервер значений не возвращает
+
+
+def test_mask_spans_let_the_browser_rebuild_the_table():
+    """Браузер берёт значения из своего текста по позициям: проверяем, что позиции верные."""
+    spans = client.post("/api/mask", json={"text": TEXT}).json()["spans"]
+    chars = list(TEXT)
+    table = {s["label"]: "".join(chars[s["start"]:s["end"]]) for s in spans}
+    assert table == {"[AD_1]": "Elvin Məmmədov", "[FIN_1]": "1A2B3C4", "[TEL_1]": "+994 50 123 45 67"}
+
+
+def test_mask_blocks_classified_text():
+    r = client.post("/api/mask", json={"text": "Gizli: FİN 1A2B3C4"})
+    assert r.status_code == 403
+    assert "1A2B3C4" not in r.text
+
+
+def test_mask_text_without_data_returns_unchanged():
+    body = client.post("/api/mask", json={"text": "Salam, necəsiniz?"}).json()
+    assert body["masked_text"] == "Salam, necəsiniz?" and body["spans"] == [] and body["found"] == {}
+
+
+# ---------- /api/chat: второй режим, нужен ключ ----------
+
+
+def test_chat_without_key_explains_how_to_continue():
+    r = client.post("/api/chat", json={"text": TEXT})
+    assert r.status_code == 503
+    assert "Копировать и вставить" in r.json()["detail"]
+    assert "1A2B3C4" not in r.text
+
+
+def test_chat_masks_and_restores(ai_on):
+    r = client.post("/api/chat", json={"text": TEXT})
+    body = r.json()
+    assert r.status_code == 200
     assert "Elvin" not in body["masked_text"] and "1A2B3C4" not in body["masked_text"]
     assert "[AD_1]" in body["masked_text"] and "[FIN_1]" in body["masked_text"]
     assert "Elvin Məmmədov" in body["answer"] and "1A2B3C4" in body["answer"]
-    assert body["found"] == {"AD": 1, "FIN": 1}
+    assert body["found"] == {"AD": 1, "FIN": 1, "TEL": 1}
 
 
-def test_chat_blocks_classified_text():
+def test_chat_blocks_classified_text_even_without_key():
     r = client.post("/api/chat", json={"text": "Gizli: FİN 1A2B3C4"})
     assert r.status_code == 403
     assert "1A2B3C4" not in r.text
 
 
+# ---------- Ошибки ввода ----------
+
+
 def test_text_too_long_gives_clear_error():
-    r = client.post("/api/chat", json={"text": "x" * (MAX_TEXT_LENGTH + 1)})
-    assert r.status_code == 413
-    assert "слишком длинный" in r.json()["detail"] and str(MAX_TEXT_LENGTH) in r.json()["detail"]
+    for path in ("/api/mask", "/api/chat"):
+        r = client.post(path, json={"text": "x" * (MAX_TEXT_LENGTH + 1)})
+        assert r.status_code == 413
+        assert "слишком длинный" in r.json()["detail"] and str(MAX_TEXT_LENGTH) in r.json()["detail"]
 
 
 def test_empty_text_gives_clear_error():
-    r = client.post("/api/chat", json={"text": ""})
+    r = client.post("/api/mask", json={"text": ""})
     assert r.status_code == 422
     assert "не должен быть пустым" in r.json()["detail"]
 
 
+# ---------- Статистика ----------
+
+
 def test_stats_contain_only_counters():
     before = client.get("/api/stats").json()
-    client.post("/api/chat", json={"text": "tel 050 123 45 67, FİN 9D1F6GH"})
+    client.post("/api/mask", json={"text": "tel 050 123 45 67, FİN 9D1F6GH"})
     after = client.get("/api/stats").json()
     assert after["requests"] == before.get("requests", 0) + 1
     assert after["categories"]["TEL"] == before["categories"].get("TEL", 0) + 1

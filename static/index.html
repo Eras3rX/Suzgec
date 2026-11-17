@@ -8,6 +8,7 @@
     :root {
       --bg: #f3f5f8; --card: #ffffff; --text: #1b2733; --muted: #667085; --line: #e4e7ec;
       --bad: #b42318; --bad-bg: #fef3f2; --good: #067647; --good-bg: #ecfdf3; --brand: #1d4ed8;
+      --warn: #93370d; --warn-bg: #fffaeb; --warn-line: #fedf89;
       /* цвета категорий: фон подсветки */
       --c-FIN: #fde68a; --c-ID: #fdba74; --c-VOEN: #c4b5fd; --c-IBAN: #93c5fd;
       --c-KART: #f9a8d4; --c-TEL: #86efac; --c-EMAIL: #67e8f9; --c-AD: #fca5a5;
@@ -19,28 +20,37 @@
     h2 { margin: 0 0 8px; font-size: 16px; }
     .sub { color: var(--muted); margin: 2px 0 14px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
-    textarea { width: 100%; min-height: 120px; padding: 10px; font: inherit; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+    textarea { width: 100%; min-height: 110px; padding: 10px; font: inherit; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
     .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; align-items: center; }
     button { font: inherit; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); cursor: pointer; min-height: 44px; }
     button.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+    button.small { min-height: 36px; padding: 6px 12px; font-size: 14px; }
     button:disabled { opacity: .6; cursor: wait; }
     .counter { margin-left: auto; color: var(--muted); font-size: 13px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
     .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; color: #1b2733; }
+    .tabs { display: flex; gap: 6px; margin: 14px 0 0; }
+    .tab { border-radius: 8px 8px 0 0; border-bottom: 0; background: #e9edf3; color: var(--muted); font-weight: 600; flex: 0 1 auto; }
+    .tab.active { background: var(--card); color: var(--text); border-color: var(--line); }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 0 10px 10px 10px; padding: 14px; }
     .banner { border-radius: 8px; padding: 10px 12px; margin: 12px 0 0; font-size: 14px; }
-    .banner.demo { background: #fffaeb; color: #93370d; border: 1px solid #fedf89; }
+    .banner.privacy { background: var(--good-bg); color: var(--good); border: 1px solid #abefc6; margin: 0 0 12px; }
     .banner.error { background: var(--bad-bg); color: var(--bad); border: 1px solid #fecdca; font-weight: 600; }
+    .banner.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+    .banner.warn ul { margin: 4px 0 0; padding-left: 20px; }
     .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .pane { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--card); }
     .pane h2.bad { color: var(--bad); }
     .pane h2.good { color: var(--good); }
     .pane.bad { border-top: 4px solid var(--bad); }
     .pane.good { border-top: 4px solid var(--good); }
     .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 4px; }
-    .label:first-of-type { margin-top: 0; }
     .out { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.5em; }
     .placeholder { color: var(--muted); font-style: italic; }
     mark { border-radius: 4px; padding: 0 3px; color: inherit; }
+    mark.alt { background: var(--bad-bg); outline: 1px solid var(--bad); color: var(--bad); }
     .blocked { background: var(--bad-bg); border: 1px solid #fecdca; color: var(--bad); border-radius: 8px; padding: 12px; font-weight: 600; }
+    .step { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
     .stat-row { display: grid; grid-template-columns: 120px 1fr 40px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
     .bar { height: 14px; border-radius: 7px; background: var(--line); overflow: hidden; }
     .bar > span { display: block; height: 100%; }
@@ -53,7 +63,8 @@
       .wrap { padding: 12px; }
       h1 { font-size: 22px; }
       .cols { grid-template-columns: 1fr; }
-      button { flex: 1 1 100%; }
+      .row button { flex: 1 1 100%; }
+      .tabs .tab { flex: 1 1 0; padding: 10px 8px; }
       .counter { margin-left: 0; flex: 1 1 100%; }
       .stat-row { grid-template-columns: 90px 1fr 32px; }
     }
@@ -62,38 +73,90 @@
 <body>
 <div class="wrap">
   <h1>Süzgəc</h1>
-  <p class="sub">Шлюз между сотрудником и AI: персональные данные заменяются метками до отправки и возвращаются в ответе.</p>
+  <p class="sub">Замаскируйте персональные данные перед отправкой в AI и верните их на место в ответе.</p>
 
   <div class="card">
     <h2>Ваш текст</h2>
     <textarea id="text" maxlength="5000" placeholder="Вставьте текст сюда (только синтетические данные)…"></textarea>
     <div class="row">
-      <button id="send" class="primary">Отправить в AI через Süzgəc</button>
-      <button id="example">Заполнить пример</button>
-      <button id="example-secret">Пример с грифом «Məxfi»</button>
+      <button id="example" class="small">Заполнить пример</button>
+      <button id="example-secret" class="small">Пример с грифом «Məxfi»</button>
       <span class="counter" id="counter">0 / 5000</span>
     </div>
     <div class="legend" id="legend" aria-label="Цвета категорий"></div>
-    <div id="demo-banner" class="banner demo" hidden>Демо-режим: ключ API не задан, вместо настоящего AI отвечает заглушка. Маскирование и восстановление работают как обычно.</div>
-    <div id="error" class="banner error" role="alert" hidden></div>
   </div>
 
-  <div class="cols">
-    <section class="card pane bad">
-      <h2 class="bad">Без Süzgəc</h2>
-      <div class="note">Так это ушло бы в AI. Найденные данные подсвечены.</div>
-      <div class="label">Исходный текст</div>
-      <div id="raw" class="out"><span class="placeholder">Здесь появится ваш текст.</span></div>
-    </section>
+  <div class="tabs" role="tablist">
+    <button id="tab-paste" class="tab active" role="tab" aria-selected="true">Копировать и вставить</button>
+    <button id="tab-ai" class="tab" role="tab" aria-selected="false" hidden>Встроенный AI</button>
+  </div>
 
-    <section class="card pane good">
-      <h2 class="good">С Süzgəc</h2>
-      <div class="note">В AI уходит только замаскированный текст.</div>
-      <div class="label">Что реально получает AI</div>
-      <div id="masked" class="out"><span class="placeholder">Пока ничего не отправлено.</span></div>
-      <div class="label">Ответ AI с восстановленными данными</div>
-      <div id="answer" class="out"><span class="placeholder">Ответ появится здесь.</span></div>
-    </section>
+  <!-- РЕЖИМ 1: копировать и вставить (без ключа API, AI не вызывается) -->
+  <div id="panel-paste" class="panel">
+    <div class="banner privacy">Таблица меток хранится только в памяти этой вкладки: не на сервере и не в браузере. Закроете или обновите вкладку — она исчезнет.</div>
+
+    <h2>Шаг 1. Замаскируйте текст</h2>
+    <div class="row" style="margin-top:0">
+      <button id="mask" class="primary">Замаскировать</button>
+      <button id="clear">Очистить всё</button>
+    </div>
+    <div id="err-paste" class="banner error" role="alert" hidden></div>
+
+    <div class="cols">
+      <section class="pane bad">
+        <h2 class="bad">Без Süzgəc</h2>
+        <div class="note">Так это ушло бы в AI. Найденные данные подсвечены.</div>
+        <div class="label">Исходный текст</div>
+        <div id="raw" class="out"><span class="placeholder">Здесь появится ваш текст.</span></div>
+      </section>
+      <section class="pane good">
+        <h2 class="good">С Süzgəc</h2>
+        <div class="note">Скопируйте этот текст и вставьте в ChatGPT, Claude или другой AI.</div>
+        <div class="label">Замаскированный текст</div>
+        <div id="masked" class="out"><span class="placeholder">Пока ничего не замаскировано.</span></div>
+        <div class="row"><button id="copy-masked" class="small" disabled>Скопировать</button></div>
+      </section>
+    </div>
+
+    <div class="step">
+      <h2>Шаг 2. Вставьте ответ AI</h2>
+      <div class="note" style="margin-bottom:8px">Метки вида [AD_1] должны остаться в ответе без изменений.</div>
+      <textarea id="answer-in" maxlength="20000" placeholder="Вставьте сюда ответ AI…"></textarea>
+      <div class="row">
+        <button id="restore" class="primary">Восстановить данные</button>
+        <button id="sample-answer" class="small">Пример ответа AI</button>
+        <button id="sample-broken" class="small">Пример: AI испортил метку</button>
+      </div>
+      <div id="err-restore" class="banner error" role="alert" hidden></div>
+      <div id="warnings" class="banner warn" hidden></div>
+      <div class="label">Ответ с восстановленными данными</div>
+      <div id="restored" class="out"><span class="placeholder">Результат появится здесь.</span></div>
+      <div class="row"><button id="copy-restored" class="small" disabled>Скопировать</button></div>
+    </div>
+  </div>
+
+  <!-- РЕЖИМ 2: встроенный AI (виден, только если на сервере задан ключ API) -->
+  <div id="panel-ai" class="panel" hidden>
+    <div class="row" style="margin-top:0">
+      <button id="send" class="primary">Отправить в AI через Süzgəc</button>
+    </div>
+    <div id="err-ai" class="banner error" role="alert" hidden></div>
+    <div class="cols">
+      <section class="pane bad">
+        <h2 class="bad">Без Süzgəc</h2>
+        <div class="note">Так это ушло бы в AI. Найденные данные подсвечены.</div>
+        <div class="label">Исходный текст</div>
+        <div id="ai-raw" class="out"><span class="placeholder">Здесь появится ваш текст.</span></div>
+      </section>
+      <section class="pane good">
+        <h2 class="good">С Süzgəc</h2>
+        <div class="note">В AI уходит только замаскированный текст.</div>
+        <div class="label">Что реально получает AI</div>
+        <div id="ai-masked" class="out"><span class="placeholder">Пока ничего не отправлено.</span></div>
+        <div class="label">Ответ AI с восстановленными данными</div>
+        <div id="ai-answer" class="out"><span class="placeholder">Ответ появится здесь.</span></div>
+      </section>
+    </div>
   </div>
 
   <section class="card" style="margin-top:12px">
@@ -104,6 +167,7 @@
   </section>
 </div>
 
+<script src="/static/restore.js"></script>
 <script>
   const LABELS = { FIN: "FİN", ID: "Удостоверение", VOEN: "VÖEN", IBAN: "IBAN", KART: "Банковская карта", TEL: "Телефон", EMAIL: "Email", AD: "ФИО" };
   const MAX_LEN = 5000;
@@ -115,6 +179,12 @@
   const SAMPLE_SECRET = "Məxfi. Daxili sənəd: əməkdaş Elvin Məmmədov, FİN 1A2B3C4. " +
     "Помоги переписать этот отчёт короче.";
 
+  // Единственное место, где живёт таблица меток: переменная в памяти этой вкладки.
+  // Не localStorage, не куки, не сервер. Исчезает при закрытии/обновлении вкладки.
+  let session = null; // { mapping: {"[AD_1]": "Elvin Məmmədov", ...} }
+  let lastMasked = "";
+  let lastRestored = "";
+
   const $ = (id) => document.getElementById(id);
 
   function el(tag, className, text) {
@@ -125,12 +195,13 @@
   }
   function setPlaceholder(node, text) { node.replaceChildren(el("span", "placeholder", text)); }
   function colorOf(cat) { return "var(--c-" + cat + ")"; }
-  function mark(text, cat) {
+  function mark(text, cat, title) {
     const m = el("mark", "", text);
     m.style.background = colorOf(cat);
-    m.title = LABELS[cat] || cat;
+    m.title = title || LABELS[cat] || cat;
     return m;
   }
+  function showMsg(id, msg) { $(id).textContent = msg; $(id).hidden = !msg; }
 
   // Легенда цветов
   for (const [cat, name] of Object.entries(LABELS)) {
@@ -162,8 +233,39 @@
     node.replaceChildren(...parts);
   }
 
-  function showError(msg) { $("error").textContent = msg; $("error").hidden = !msg; }
+  async function postJson(url, text) {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    let data = {};
+    try { data = await r.json(); } catch (e) { /* пустой ответ */ }
+    return { ok: r.ok, status: r.status, data };
+  }
 
+  // ---------- Копирование (работает и по http в локальной сети, где нет navigator.clipboard) ----------
+  async function copyText(text, button) {
+    const original = button.textContent;
+    let ok = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch (e) { /* пробуем запасной способ */ }
+    if (!ok) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      ta.remove();
+    }
+    button.textContent = ok ? "Скопировано ✓" : "Не удалось: выделите и скопируйте вручную";
+    setTimeout(() => { button.textContent = original; }, 2000);
+  }
+
+  // ---------- Статистика ----------
   async function loadStats() {
     try {
       const s = await (await fetch("/api/stats")).json();
@@ -185,57 +287,175 @@
     } catch (e) { /* статистика необязательна для работы страницы */ }
   }
 
-  async function postJson(url, text) {
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
-    let data = {};
-    try { data = await r.json(); } catch (e) { /* пустой ответ */ }
-    return { ok: r.ok, status: r.status, data };
+  function inputText() {
+    const text = $("text").value;
+    return text.trim() ? text : null;
   }
 
-  async function send() {
-    const text = $("text").value;
-    showError("");
-    if (!text.trim()) { showError("Введите текст или нажмите «Заполнить пример»."); return; }
+  // ---------- Режим 1: копировать и вставить ----------
+  function resetStep2() {
+    $("answer-in").value = "";
+    lastRestored = "";
+    showMsg("err-restore", "");
+    $("warnings").hidden = true;
+    setPlaceholder($("restored"), "Результат появится здесь.");
+    $("copy-restored").disabled = true;
+  }
+
+  function clearAll() {
+    session = null;
+    lastMasked = "";
+    $("text").value = "";
+    updateCounter();
+    showMsg("err-paste", "");
+    setPlaceholder($("raw"), "Здесь появится ваш текст.");
+    setPlaceholder($("masked"), "Пока ничего не замаскировано.");
+    $("copy-masked").disabled = true;
+    resetStep2();
+  }
+
+  async function doMask() {
+    const text = inputText();
+    showMsg("err-paste", "");
+    if (!text) { showMsg("err-paste", "Введите текст или нажмите «Заполнить пример»."); return; }
+    $("mask").disabled = true;
+    try {
+      const r = await postJson("/api/mask", text);
+      session = null;
+      lastMasked = "";
+      $("copy-masked").disabled = true;
+      resetStep2();
+      if (r.status === 403) {
+        renderHighlighted($("raw"), text, []);
+        $("masked").replaceChildren(el("div", "blocked", "Текст заблокирован: найден гриф «Məxfi» / «Gizli». В AI такой текст отправлять нельзя."));
+        return;
+      }
+      if (!r.ok) { showMsg("err-paste", r.data.detail || "Ошибка сервера."); return; }
+      // Таблицу меток строим здесь, из текста, который уже у пользователя. Сервер значений не возвращает.
+      session = { mapping: Suzgec.buildMapping(text, r.data.spans) };
+      lastMasked = r.data.masked_text;
+      renderHighlighted($("raw"), text, r.data.spans);
+      renderMasked($("masked"), lastMasked);
+      $("copy-masked").disabled = false;
+    } catch (e) {
+      showMsg("err-paste", "Не удалось связаться с сервером. Он запущен?");
+    } finally {
+      $("mask").disabled = false;
+      loadStats();
+    }
+  }
+
+  function doRestore() {
+    showMsg("err-restore", "");
+    $("warnings").hidden = true;
+    if (!session) { showMsg("err-restore", "Сначала замаскируйте текст (шаг 1): без него неизвестно, что на что менять."); return; }
+    const answer = $("answer-in").value;
+    if (!answer.trim()) { showMsg("err-restore", "Вставьте ответ AI в поле выше."); return; }
+
+    const res = Suzgec.restoreAnswer(answer, session.mapping);
+    const nodes = res.parts.map((p) => {
+      if (p.type === "value") return mark(p.text, p.category, "Восстановлено вместо " + p.label);
+      if (p.type === "altered" || p.type === "unknown") {
+        const m = el("mark", "alt", p.text);
+        m.title = p.type === "altered" ? "Метка изменена" : "Метки не было в вашем тексте";
+        return m;
+      }
+      return p.text;
+    });
+    $("restored").replaceChildren(...nodes);
+    lastRestored = res.text;
+    $("copy-restored").disabled = false;
+
+    if (res.warnings.length) {
+      const list = el("ul");
+      res.warnings.forEach((w) => list.append(el("li", "", w)));
+      $("warnings").replaceChildren(el("b", "", "Проверьте ответ:"), list);
+      $("warnings").hidden = false;
+    }
+  }
+
+  function sampleReply(broken) {
+    if (!session) { showMsg("err-restore", "Сначала замаскируйте текст (шаг 1)."); return; }
+    // Пример ответа AI, в котором встречаются все метки из вашего текста.
+    const labels = Object.keys(session.mapping);
+    const facts = labels.map((l) => (LABELS[l.slice(1, l.indexOf("_"))] || "данные") + " " + l);
+    let t = "Здравствуйте! Мы получили ваше обращение. Проверили указанные данные: " + facts.join("; ") + ". Ответим в течение дня.";
+    if (broken && labels.length) {
+      // Портим две метки и теряем третью, чтобы показать предупреждения.
+      t = t.replace(labels[0], labels[0].toLowerCase().replace("_", " "));
+      if (labels[1]) t = t.replace(labels[1], labels[1].slice(1, -1));
+      if (labels[2]) t = t.replace(labels[2], "");
+    }
+    $("answer-in").value = t;
+    showMsg("err-restore", "");
+  }
+
+  // ---------- Режим 2: встроенный AI ----------
+  async function sendToAi() {
+    const text = inputText();
+    showMsg("err-ai", "");
+    if (!text) { showMsg("err-ai", "Введите текст или нажмите «Заполнить пример»."); return; }
     $("send").disabled = true;
-    setPlaceholder($("masked"), "Обрабатываю…");
-    setPlaceholder($("answer"), "…");
+    setPlaceholder($("ai-masked"), "Обрабатываю…");
+    setPlaceholder($("ai-answer"), "…");
     try {
       const check = await postJson("/api/check", text);
-      if (!check.ok) { showError(check.data.detail || "Ошибка проверки текста."); return; }
-      renderHighlighted($("raw"), text, check.data.findings);
+      if (!check.ok) { showMsg("err-ai", check.data.detail || "Ошибка проверки текста."); return; }
+      renderHighlighted($("ai-raw"), text, check.data.findings);
 
       const chat = await postJson("/api/chat", text);
       if (chat.status === 403) {
-        const box = el("div", "blocked", "Текст заблокирован: найден гриф «Məxfi» / «Gizli». В AI ничего не отправлено.");
-        $("masked").replaceChildren(box);
-        setPlaceholder($("answer"), "Ответа нет: запрос не отправлялся.");
+        $("ai-masked").replaceChildren(el("div", "blocked", "Текст заблокирован: найден гриф «Məxfi» / «Gizli». В AI ничего не отправлено."));
+        setPlaceholder($("ai-answer"), "Ответа нет: запрос не отправлялся.");
       } else if (!chat.ok) {
-        showError(chat.data.detail || "Ошибка сервера.");
-        setPlaceholder($("masked"), "Не удалось отправить.");
-        setPlaceholder($("answer"), "—");
+        showMsg("err-ai", chat.data.detail || "Ошибка сервера.");
+        setPlaceholder($("ai-masked"), "Не удалось отправить.");
+        setPlaceholder($("ai-answer"), "—");
       } else {
-        renderMasked($("masked"), chat.data.masked_text);
-        $("answer").textContent = chat.data.answer;
-        $("demo-banner").hidden = !chat.data.demo;
+        renderMasked($("ai-masked"), chat.data.masked_text);
+        $("ai-answer").textContent = chat.data.answer;
       }
     } catch (e) {
-      showError("Не удалось связаться с сервером. Он запущен?");
-      setPlaceholder($("masked"), "—");
-      setPlaceholder($("answer"), "—");
+      showMsg("err-ai", "Не удалось связаться с сервером. Он запущен?");
+      setPlaceholder($("ai-masked"), "—");
+      setPlaceholder($("ai-answer"), "—");
     } finally {
       $("send").disabled = false;
       loadStats();
     }
   }
 
+  // ---------- Вкладки ----------
+  function selectTab(name) {
+    const paste = name === "paste";
+    $("tab-paste").classList.toggle("active", paste);
+    $("tab-ai").classList.toggle("active", !paste);
+    $("tab-paste").setAttribute("aria-selected", String(paste));
+    $("tab-ai").setAttribute("aria-selected", String(!paste));
+    $("panel-paste").hidden = !paste;
+    $("panel-ai").hidden = paste;
+  }
+
   function updateCounter() { $("counter").textContent = $("text").value.length + " / " + MAX_LEN; }
 
-  $("send").addEventListener("click", send);
+  $("tab-paste").addEventListener("click", () => selectTab("paste"));
+  $("tab-ai").addEventListener("click", () => selectTab("ai"));
+  $("mask").addEventListener("click", doMask);
+  $("clear").addEventListener("click", clearAll);
+  $("restore").addEventListener("click", doRestore);
+  $("sample-answer").addEventListener("click", () => sampleReply(false));
+  $("sample-broken").addEventListener("click", () => sampleReply(true));
+  $("copy-masked").addEventListener("click", () => copyText(lastMasked, $("copy-masked")));
+  $("copy-restored").addEventListener("click", () => copyText(lastRestored, $("copy-restored")));
+  $("send").addEventListener("click", sendToAi);
   $("example").addEventListener("click", () => { $("text").value = SAMPLE; updateCounter(); });
   $("example-secret").addEventListener("click", () => { $("text").value = SAMPLE_SECRET; updateCounter(); });
   $("text").addEventListener("input", updateCounter);
   updateCounter();
   loadStats();
+
+  // Встроенный AI показываем, только если на сервере задан ключ API.
+  fetch("/api/config").then((r) => r.json()).then((c) => { if (c.ai_available) $("tab-ai").hidden = false; }).catch(() => {});
 </script>
 </body>
 </html>

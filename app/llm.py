@@ -1,6 +1,7 @@
 """Вызов LLM. В модель уходит только замаскированный текст.
 
-Без ANTHROPIC_API_KEY работает демо-режим (заглушка) — демо не ломается.
+Встроенный AI — второй режим: работает только при заданном ANTHROPIC_API_KEY.
+Основной режим («копировать и вставить») обходится без ключа и без вызовов AI.
 Ключ и модель берутся из .env / переменных окружения.
 """
 from __future__ import annotations
@@ -37,17 +38,14 @@ class LLMError(Exception):
     """Понятная ошибка для пользователя (без технических деталей и без текста запроса)."""
 
 
-def is_demo() -> bool:
-    return not os.getenv("ANTHROPIC_API_KEY")
-
-
-def _demo_answer(masked_text: str) -> str:
-    return f"[ДЕМО-РЕЖИМ, ключ API не задан] Ассистент получил текст: «{masked_text}»"
+def ai_enabled() -> bool:
+    """Встроенный AI доступен, только если задан ключ API."""
+    return bool(os.getenv("ANTHROPIC_API_KEY"))
 
 
 def ask_llm(masked_text: str) -> str:
-    if is_demo():
-        return _demo_answer(masked_text)
+    if not ai_enabled():
+        raise LLMError("Встроенный AI не настроен: не задан ключ API.")
 
     model = os.getenv("ANTHROPIC_MODEL")
     if not model:

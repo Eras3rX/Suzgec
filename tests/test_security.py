@@ -32,14 +32,6 @@ INJECTIONS = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def clean(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    limiter.reset()
-    yield
-    limiter.reset()
-
-
 def assert_no_secrets(text: str):
     for s in SECRETS:
         assert s not in text, f"утечка: {s!r}"
@@ -54,18 +46,20 @@ def test_code_has_no_storage_or_print():
         assert not forbidden.search(path.read_text(encoding="utf-8")), path.name
 
 
-def test_nothing_logged_or_printed(caplog, capfd):
+def test_nothing_logged_or_printed(ai_on, caplog, capfd):
     caplog.set_level(logging.DEBUG)
     for _ in range(2):
         client.post("/api/check", json={"text": SECRET_TEXT})
+        client.post("/api/mask", json={"text": SECRET_TEXT})
         client.post("/api/chat", json={"text": SECRET_TEXT})
         client.post("/api/chat", json={"text": "Məxfi " + SECRET_TEXT})
     out = capfd.readouterr()
     assert_no_secrets(caplog.text + out.out + out.err)
 
 
-def test_no_files_written(tmp_path, monkeypatch):
+def test_no_files_written(ai_on, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    client.post("/api/mask", json={"text": SECRET_TEXT})
     client.post("/api/chat", json={"text": SECRET_TEXT})
     assert list(tmp_path.iterdir()) == []
 
@@ -85,7 +79,7 @@ def test_unhandled_error_hides_text_from_response_and_log(monkeypatch, caplog):
 
     monkeypatch.setattr(main, "mask", boom)
     caplog.set_level(logging.DEBUG)
-    r = safe_client.post("/api/chat", json={"text": SECRET_TEXT})
+    r = safe_client.post("/api/mask", json={"text": SECRET_TEXT})
     assert r.status_code == 500
     assert_no_secrets(r.text)
     assert_no_secrets(caplog.text)
@@ -126,7 +120,7 @@ def test_huge_body_rejected_before_parsing():
 
 
 @pytest.mark.parametrize("injection", INJECTIONS)
-def test_llm_never_receives_original_data(monkeypatch, injection):
+def test_llm_never_receives_original_data(ai_on, monkeypatch, injection):
     received = []
 
     def spy(masked_text):
@@ -161,7 +155,7 @@ def test_payload_to_anthropic_has_no_data_and_tags_hold(monkeypatch, injection):
     monkeypatch.setenv("ANTHROPIC_MODEL", "test-model")
 
     r = client.post("/api/chat", json={"text": f"{injection} {SECRET_TEXT}"})
-    assert r.status_code == 200 and r.json()["demo"] is False
+    assert r.status_code == 200
     assert len(calls) == 1
     payload = calls[0]
     assert_no_secrets(json.dumps(payload, ensure_ascii=False))
@@ -182,16 +176,22 @@ def test_anthropic_sdk_debug_logging_is_off():
 # ---------- Дневной потолок вызовов AI ----------
 
 
-def test_daily_llm_limit_blocks_real_calls_only(monkeypatch):
+def test_daily_llm_limit_blocks_real_calls_only(ai_on, monkeypatch):
     monkeypatch.setattr(main, "DAILY_LLM_LIMIT", 2)
     monkeypatch.setitem(main._daily, "day", None)
-    monkeypatch.setattr(main, "ask_llm", lambda text: "ok")
 
-    # Демо-режим (нет ключа): лимит не действует.
-    assert all(client.post("/api/chat", json={"text": "salam"}).status_code == 200 for _ in range(4))
-
-    # С ключом: после двух вызовов — понятный отказ.
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
     codes = [client.post("/api/chat", json={"text": "salam"}).status_code for _ in range(3)]
     assert codes == [200, 200, 429]
     assert "Дневной лимит" in client.post("/api/chat", json={"text": "salam"}).json()["detail"]
+    # Режим «копировать и вставить» AI не вызывает, поэтому лимит его не касается.
+    assert client.post("/api/mask", json={"text": "salam"}).status_code == 200
+
+
+# ---------- Режим «копировать и вставить» ----------
+
+
+@pytest.mark.parametrize("injection", INJECTIONS)
+def test_mask_response_never_contains_original_data(injection):
+    r = client.post("/api/mask", json={"text": f"{injection} {SECRET_TEXT}"})
+    assert r.status_code == 200
+    assert_no_secrets(r.text)

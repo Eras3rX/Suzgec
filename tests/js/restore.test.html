@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Тесты restore.js</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 16px; }
+    .ok { color: #067647; } .fail { color: #b42318; font-weight: 600; }
+    #summary { font-size: 18px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Тесты логики «копировать и вставить»</h1>
+  <p>Откройте этот файл в браузере (двойной клик). Все строки должны быть зелёными. Данные синтетические.</p>
+  <div id="summary"></div>
+  <ul id="results"></ul>
+
+  <script src="../../static/restore.js"></script>
+  <script>
+    const { buildMapping, restoreAnswer } = window.Suzgec;
+    const results = [];
+    function test(name, fn) {
+      try { fn(); results.push([name, true, ""]); }
+      catch (e) { results.push([name, false, e.message]); }
+    }
+    function eq(actual, expected) {
+      const a = JSON.stringify(actual), b = JSON.stringify(expected);
+      if (a !== b) throw new Error("ожидалось " + b + ", получено " + a);
+    }
+
+    const MAP = { "[AD_1]": "Elvin Məmmədov", "[FIN_1]": "1A2B3C4", "[TEL_1]": "+994 50 123 45 67" };
+
+    test("buildMapping берёт значения по позициям", () => {
+      const text = "Mən Elvin Məmmədov, FİN 1A2B3C4";
+      eq(buildMapping(text, [
+        { label: "[AD_1]", start: 4, end: 18 },
+        { label: "[FIN_1]", start: 24, end: 31 },
+      ]), { "[AD_1]": "Elvin Məmmədov", "[FIN_1]": "1A2B3C4" });
+    });
+
+    test("buildMapping считает позиции в символах Unicode, а не в UTF-16", () => {
+      const text = "😀 Elvin FİN 1A2B3C4"; // смайлик = 1 символ Unicode, но 2 единицы UTF-16
+      eq(buildMapping(text, [{ label: "[FIN_1]", start: 12, end: 19 }]), { "[FIN_1]": "1A2B3C4" });
+    });
+
+    test("повторная метка не перезаписывает значение", () => {
+      const text = "1A2B3C4 и снова 1A2B3C4";
+      eq(buildMapping(text, [
+        { label: "[FIN_1]", start: 0, end: 7 }, { label: "[FIN_1]", start: 16, end: 23 },
+      ]), { "[FIN_1]": "1A2B3C4" });
+    });
+
+    test("точные метки заменяются значениями, предупреждений нет", () => {
+      const r = restoreAnswer("Здравствуйте, [AD_1]! Ваш FİN [FIN_1], тел. [TEL_1].", MAP);
+      eq(r.text, "Здравствуйте, Elvin Məmmədov! Ваш FİN 1A2B3C4, тел. +994 50 123 45 67.");
+      eq(r.restored, 3); eq(r.warnings, []);
+    });
+
+    test("одна метка несколько раз", () => {
+      eq(restoreAnswer("[FIN_1] и ещё раз [FIN_1]", MAP).text, "1A2B3C4 и ещё раз 1A2B3C4");
+    });
+
+    test("потерянная метка: предупреждение, остальные подставлены", () => {
+      const r = restoreAnswer("Здравствуйте, [AD_1]!", MAP);
+      eq(r.text, "Здравствуйте, Elvin Məmmədov!");
+      eq(r.missing, ["[FIN_1]", "[TEL_1]"]);
+      eq(r.warnings.length, 1);
+      if (!r.warnings[0].includes("[FIN_1]") || !r.warnings[0].includes("[TEL_1]")) throw new Error(r.warnings[0]);
+    });
+
+    test("в ответе нет ни одной метки: отдельное предупреждение", () => {
+      const r = restoreAnswer("Всё понятно, спасибо.", MAP);
+      eq(r.restored, 0); eq(r.warnings.length, 1);
+      if (!r.warnings[0].includes("нет ни одной метки")) throw new Error(r.warnings[0]);
+    });
+
+    test("изменённая метка: регистр, пробелы, дефис, без скобок", () => {
+      const r = restoreAnswer("Привет [ad_1], [FIN 1], [Tel-1] и FIN_1.", MAP);
+      eq(r.altered.map((a) => a.text), ["[ad_1]", "[FIN 1]", "[Tel-1]", "FIN_1"]);
+      eq(r.altered.map((a) => a.guess), ["[AD_1]", "[FIN_1]", "[TEL_1]", "[FIN_1]"]);
+      eq(r.restored, 0);
+      eq(r.text, "Привет [ad_1], [FIN 1], [Tel-1] и FIN_1."); // испорченные не трогаем
+      eq(r.missing, []); // они «найдены», но испорчены — об этом отдельное предупреждение
+      if (!r.warnings[0].includes("AI изменил метки")) throw new Error(r.warnings[0]);
+    });
+
+    test("испорченная метка не мешает восстановить остальные", () => {
+      const r = restoreAnswer("[AD_1] звонил на [tel_1], FİN [FIN_1]", MAP);
+      eq(r.text, "Elvin Məmmədov звонил на [tel_1], FİN 1A2B3C4");
+      eq(r.restored, 2); eq(r.altered.length, 1);
+    });
+
+    test("метка, которой не было в тексте, остаётся как есть и даёт предупреждение", () => {
+      const r = restoreAnswer("Привет [AD_1] и [IBAN_7]", MAP);
+      eq(r.unknown, ["[IBAN_7]"]);
+      if (!r.text.endsWith("[IBAN_7]")) throw new Error(r.text);
+      if (!r.warnings.some((w) => w.includes("которых не было"))) throw new Error(r.warnings.join("|"));
+    });
+
+    test("обычный текст с похожими словами не считается меткой", () => {
+      const r = restoreAnswer("Скачайте ad_banner, id 5, download_1 и FIN-1 в тексте", {});
+      eq(r.altered, []); eq(r.unknown, []);
+    });
+
+    test("безопасность: значение из mapping не интерпретируется как HTML/шаблон", () => {
+      const r = restoreAnswer("[AD_1]", { "[AD_1]": "<img src=x onerror=alert(1)> $& $1" });
+      eq(r.text, "<img src=x onerror=alert(1)> $& $1");
+    });
+
+    test("пустое mapping: всё считается чужим", () => {
+      const r = restoreAnswer("Привет [AD_1]", {});
+      eq(r.unknown, ["[AD_1]"]); eq(r.restored, 0);
+    });
+
+    // Вывод
+    const ul = document.getElementById("results");
+    let failed = 0;
+    for (const [name, ok, msg] of results) {
+      const li = document.createElement("li");
+      li.className = ok ? "ok" : "fail";
+      li.textContent = (ok ? "✓ " : "✗ ") + name + (ok ? "" : " — " + msg);
+      ul.append(li);
+      if (!ok) failed++;
+    }
+    document.getElementById("summary").textContent = failed ? ("Провалено: " + failed + " из " + results.length) : ("Все тесты пройдены: " + results.length);
+    document.getElementById("summary").className = failed ? "fail" : "ok";
+    document.title = failed ? "FAIL" : "PASS";
+  </script>
+</body>
+</html>

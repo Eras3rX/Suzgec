@@ -38,3 +38,14 @@ def test_restore_in_llm_answer():
     result = mask("Mənim adım Aysel Əliyeva")
     answer = "Salam, [AD_1]! Sizə necə kömək edim?"
     assert restore(answer, result.mapping) == "Salam, Aysel Əliyeva! Sizə necə kömək edim?"
+
+
+def test_spans_point_to_original_values():
+    text = "Elvin Məmmədov, FİN 1A2B3C4, yenə 1A2B3C4"
+    result = mask(text)
+    assert [(s.label, text[s.start:s.end]) for s in result.spans] == [
+        ("[AD_1]", "Elvin Məmmədov"),
+        ("[FIN_1]", "1A2B3C4"),
+        ("[FIN_1]", "1A2B3C4"),
+    ]
+    assert all(result.mapping[s.label] == text[s.start:s.end] for s in result.spans)

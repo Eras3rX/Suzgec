@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.detector import detect, is_classified
-from app.llm import LLMError, ask_llm, is_demo
+from app.llm import LLMError, ai_enabled, ask_llm
 from app.masker import mask, restore
 from app.ratelimit import RateLimiter
 
@@ -28,7 +28,7 @@ MAX_BODY_BYTES = 64 * 1024  # 5000 символов даже с экраниро
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 # Общий дневной потолок настоящих вызовов AI: публичная ссылка не должна сжечь баланс ключа API.
 DAILY_LLM_LIMIT = int(os.getenv("DAILY_LLM_LIMIT", "300"))
-RATE_LIMITED_PATHS = {"/api/check", "/api/chat"}
+RATE_LIMITED_PATHS = {"/api/check", "/api/mask", "/api/chat"}
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 limiter = RateLimiter(RATE_LIMIT_PER_MINUTE, 60.0)
@@ -45,9 +45,7 @@ _daily = {"day": None, "count": 0}  # сколько раз сегодня (UTC)
 
 
 def _reserve_llm_call() -> bool:
-    """Занять одну из дневных попыток вызова AI. В демо-режиме (без ключа) лимит не нужен."""
-    if is_demo():
-        return True
+    """Занять одну из дневных попыток вызова AI."""
     today = datetime.now(timezone.utc).date()
     with _stats_lock:
         if _daily["day"] != today:
@@ -118,17 +116,55 @@ def check(body: TextIn):
     }
 
 
-@app.post("/api/chat")
-def chat(body: TextIn):
-    if is_classified(body.text):
+_BLOCKED_DETAIL = "Текст с грифом «Məxfi» / «Gizli» заблокирован и не отправлен в ИИ."
+
+
+def _block_classified(text: str) -> None:
+    """Текст с грифом блокируется целиком: считаем блокировку и отказываем."""
+    if is_classified(text):
         with _stats_lock:
             _totals["requests"] += 1
             _totals["blocked"] += 1
-        raise HTTPException(
-            status_code=403,
-            detail="Текст с грифом «Məxfi» / «Gizli» заблокирован и не отправлен в ИИ.",
-        )
+        raise HTTPException(status_code=403, detail=_BLOCKED_DETAIL)
 
+
+@app.get("/api/config")
+def config():
+    """Что доступно на этом сервере. Страница прячет режим «Встроенный AI», если ключа нет."""
+    return {"ai_available": ai_enabled()}
+
+
+@app.post("/api/mask")
+def mask_only(body: TextIn):
+    """Режим «копировать и вставить»: замаскировать текст, AI не вызывается.
+
+    Значения персональных данных в ответ НЕ возвращаются: только замаскированный текст и позиции
+    (spans). Таблицу «метка → значение» браузер собирает сам из текста, который пользователь
+    уже держит у себя, и хранит только в памяти вкладки.
+    """
+    _block_classified(body.text)
+    masked = mask(body.text)
+    with _stats_lock:
+        _totals["requests"] += 1
+        _category_counts.update(masked.counts)
+    return {
+        "masked_text": masked.masked_text,
+        "spans": [
+            {"label": s.label, "category": s.category, "start": s.start, "end": s.end}
+            for s in masked.spans
+        ],
+        "found": dict(masked.counts),
+    }
+
+
+@app.post("/api/chat")
+def chat(body: TextIn):
+    _block_classified(body.text)
+    if not ai_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="Встроенный AI не настроен (нет ключа API). Используйте режим «Копировать и вставить».",
+        )
     if not _reserve_llm_call():
         raise HTTPException(status_code=429, detail="Дневной лимит демо исчерпан. Попробуйте завтра.")
 
@@ -146,7 +182,6 @@ def chat(body: TextIn):
         "masked_text": masked.masked_text,
         "answer": restore(raw_answer, masked.mapping),
         "found": dict(masked.counts),
-        "demo": is_demo(),
     }
 
 
