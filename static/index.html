@@ -3,72 +3,239 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Süzgəc</title>
+  <title>Süzgəc — шлюз защиты данных для AI</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f6f8; color: #1b2733; }
-    h1 { margin: 0 0 4px; }
-    textarea { width: 100%; box-sizing: border-box; height: 110px; padding: 8px; font: inherit; }
-    button { margin: 8px 0; padding: 8px 20px; font: inherit; cursor: pointer; }
-    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .box { background: #fff; border-radius: 8px; padding: 12px; min-height: 140px; white-space: pre-wrap; word-break: break-word; }
-    .box h2 { margin: 0 0 8px; font-size: 16px; }
-    .bad h2 { color: #b42318; }
-    .good h2 { color: #067647; }
-    .error { color: #b42318; font-weight: 600; }
-    .note { color: #667085; font-size: 13px; }
-    @media (max-width: 700px) { .cols { grid-template-columns: 1fr; } }
+    :root {
+      --bg: #f3f5f8; --card: #ffffff; --text: #1b2733; --muted: #667085; --line: #e4e7ec;
+      --bad: #b42318; --bad-bg: #fef3f2; --good: #067647; --good-bg: #ecfdf3; --brand: #1d4ed8;
+      /* цвета категорий: фон подсветки */
+      --c-FIN: #fde68a; --c-ID: #fdba74; --c-VOEN: #c4b5fd; --c-IBAN: #93c5fd;
+      --c-KART: #f9a8d4; --c-TEL: #86efac; --c-EMAIL: #67e8f9; --c-AD: #fca5a5;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    h1 { margin: 0; font-size: 26px; }
+    h2 { margin: 0 0 8px; font-size: 16px; }
+    .sub { color: var(--muted); margin: 2px 0 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+    textarea { width: 100%; min-height: 120px; padding: 10px; font: inherit; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; align-items: center; }
+    button { font: inherit; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); cursor: pointer; min-height: 44px; }
+    button.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .counter { margin-left: auto; color: var(--muted); font-size: 13px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+    .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; color: #1b2733; }
+    .banner { border-radius: 8px; padding: 10px 12px; margin: 12px 0 0; font-size: 14px; }
+    .banner.demo { background: #fffaeb; color: #93370d; border: 1px solid #fedf89; }
+    .banner.error { background: var(--bad-bg); color: var(--bad); border: 1px solid #fecdca; font-weight: 600; }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .pane h2.bad { color: var(--bad); }
+    .pane h2.good { color: var(--good); }
+    .pane.bad { border-top: 4px solid var(--bad); }
+    .pane.good { border-top: 4px solid var(--good); }
+    .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 4px; }
+    .label:first-of-type { margin-top: 0; }
+    .out { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.5em; }
+    .placeholder { color: var(--muted); font-style: italic; }
+    mark { border-radius: 4px; padding: 0 3px; color: inherit; }
+    .blocked { background: var(--bad-bg); border: 1px solid #fecdca; color: var(--bad); border-radius: 8px; padding: 12px; font-weight: 600; }
+    .stat-row { display: grid; grid-template-columns: 120px 1fr 40px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
+    .bar { height: 14px; border-radius: 7px; background: var(--line); overflow: hidden; }
+    .bar > span { display: block; height: 100%; }
+    .stat-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .totals { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 8px; }
+    .totals b { font-size: 22px; display: block; }
+    .totals span { color: var(--muted); font-size: 13px; }
+    .note { color: var(--muted); font-size: 13px; }
+    @media (max-width: 720px) {
+      .wrap { padding: 12px; }
+      h1 { font-size: 22px; }
+      .cols { grid-template-columns: 1fr; }
+      button { flex: 1 1 100%; }
+      .counter { margin-left: 0; flex: 1 1 100%; }
+      .stat-row { grid-template-columns: 90px 1fr 32px; }
+    }
   </style>
 </head>
 <body>
+<div class="wrap">
   <h1>Süzgəc</h1>
-  <p class="note">Вставьте текст с (синтетическими!) персональными данными и нажмите «Отправить».</p>
-  <textarea id="text">Salam, mən Elvin Məmmədov. FİN: 1A2B3C4, telefon +994 50 123 45 67, email elvin@example.com. Помоги составить письмо.</textarea>
-  <br><button id="send">Отправить</button>
-  <div id="error" class="error"></div>
+  <p class="sub">Шлюз между сотрудником и AI: персональные данные заменяются метками до отправки и возвращаются в ответе.</p>
 
-  <div class="cols">
-    <div class="box bad"><h2>Без Süzgəc (что ушло бы в AI)</h2><div id="raw"></div></div>
-    <div class="box good"><h2>С Süzgəc</h2>
-      <div class="note">Что получил ИИ:</div><div id="masked"></div>
-      <div class="note" style="margin-top:10px">Ответ с восстановленными данными:</div><div id="answer"></div>
+  <div class="card">
+    <h2>Ваш текст</h2>
+    <textarea id="text" maxlength="5000" placeholder="Вставьте текст сюда (только синтетические данные)…"></textarea>
+    <div class="row">
+      <button id="send" class="primary">Отправить в AI через Süzgəc</button>
+      <button id="example">Заполнить пример</button>
+      <button id="example-secret">Пример с грифом «Məxfi»</button>
+      <span class="counter" id="counter">0 / 5000</span>
     </div>
+    <div class="legend" id="legend" aria-label="Цвета категорий"></div>
+    <div id="demo-banner" class="banner demo" hidden>Демо-режим: ключ API не задан, вместо настоящего AI отвечает заглушка. Маскирование и восстановление работают как обычно.</div>
+    <div id="error" class="banner error" role="alert" hidden></div>
   </div>
 
-  <h2>Статистика (только счётчики по категориям)</h2>
-  <div id="stats" class="box" style="min-height:0"></div>
+  <div class="cols">
+    <section class="card pane bad">
+      <h2 class="bad">Без Süzgəc</h2>
+      <div class="note">Так это ушло бы в AI. Найденные данные подсвечены.</div>
+      <div class="label">Исходный текст</div>
+      <div id="raw" class="out"><span class="placeholder">Здесь появится ваш текст.</span></div>
+    </section>
 
-  <script>
-    const $ = (id) => document.getElementById(id);
+    <section class="card pane good">
+      <h2 class="good">С Süzgəc</h2>
+      <div class="note">В AI уходит только замаскированный текст.</div>
+      <div class="label">Что реально получает AI</div>
+      <div id="masked" class="out"><span class="placeholder">Пока ничего не отправлено.</span></div>
+      <div class="label">Ответ AI с восстановленными данными</div>
+      <div id="answer" class="out"><span class="placeholder">Ответ появится здесь.</span></div>
+    </section>
+  </div>
 
-    async function loadStats() {
-      const r = await fetch("/api/stats");
-      const s = await r.json();
-      const cats = Object.entries(s.categories || {}).map(([k, v]) => k + ": " + v).join(", ") || "пока ничего";
-      $("stats").textContent = "Запросов: " + (s.requests || 0) + ", заблокировано: " + (s.blocked || 0) + ". Найдено — " + cats;
+  <section class="card" style="margin-top:12px">
+    <h2>Статистика сессии</h2>
+    <div class="note" style="margin-bottom:10px">Только счётчики по категориям. Тексты не сохраняются и не показываются.</div>
+    <div id="totals" class="totals"></div>
+    <div id="stats"></div>
+  </section>
+</div>
+
+<script>
+  const LABELS = { FIN: "FİN", ID: "Удостоверение", VOEN: "VÖEN", IBAN: "IBAN", KART: "Банковская карта", TEL: "Телефон", EMAIL: "Email", AD: "ФИО" };
+  const MAX_LEN = 5000;
+
+  const SAMPLE = "Salam! Mən Elvin Məmmədov. FİN kodum 1A2B3C4, vəsiqə nömrəm AZE04512367. " +
+    "Telefon: +994 50 123 45 67, e-poçt: elvin.test@example.az. " +
+    "Maaşım AZ21NABZ00000000137010001944 hesabına köçürülsün, kart 4111 1111 1111 1111. " +
+    "Помоги составить официальное письмо в банк с просьбой пересмотреть лимит по карте.";
+  const SAMPLE_SECRET = "Məxfi. Daxili sənəd: əməkdaş Elvin Məmmədov, FİN 1A2B3C4. " +
+    "Помоги переписать этот отчёт короче.";
+
+  const $ = (id) => document.getElementById(id);
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function setPlaceholder(node, text) { node.replaceChildren(el("span", "placeholder", text)); }
+  function colorOf(cat) { return "var(--c-" + cat + ")"; }
+  function mark(text, cat) {
+    const m = el("mark", "", text);
+    m.style.background = colorOf(cat);
+    m.title = LABELS[cat] || cat;
+    return m;
+  }
+
+  // Легенда цветов
+  for (const [cat, name] of Object.entries(LABELS)) {
+    const t = el("span", "tag", name);
+    t.style.background = colorOf(cat);
+    $("legend").append(t);
+  }
+
+  // Исходный текст с подсветкой. Позиции от сервера — в символах Unicode (кодовых точках).
+  function renderHighlighted(node, text, findings) {
+    const chars = Array.from(text);
+    const parts = [];
+    let pos = 0;
+    for (const f of findings) {
+      if (f.start > pos) parts.push(chars.slice(pos, f.start).join(""));
+      parts.push(mark(chars.slice(f.start, f.end).join(""), f.category));
+      pos = f.end;
     }
+    parts.push(chars.slice(pos).join(""));
+    node.replaceChildren(...parts);
+  }
 
-    $("send").addEventListener("click", async () => {
-      const text = $("text").value;
-      $("error").textContent = "";
-      $("raw").textContent = text;
-      $("masked").textContent = "";
-      $("answer").textContent = "";
-      try {
-        const r = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-        const data = await r.json();
-        if (!r.ok) { $("error").textContent = data.detail || "Ошибка"; }
-        else { $("masked").textContent = data.masked_text; $("answer").textContent = data.answer; }
-      } catch (e) {
-        $("error").textContent = "Не удалось связаться с сервером.";
-      }
-      loadStats();
+  // Замаскированный текст: метки вида [AD_1] красим цветом категории.
+  function renderMasked(node, text) {
+    const parts = text.split(/(\[[A-Z]+_\d+\])/).map((chunk) => {
+      const m = chunk.match(/^\[([A-Z]+)_\d+\]$/);
+      return m && LABELS[m[1]] ? mark(chunk, m[1]) : chunk;
     });
+    node.replaceChildren(...parts);
+  }
 
-    loadStats();
-  </script>
+  function showError(msg) { $("error").textContent = msg; $("error").hidden = !msg; }
+
+  async function loadStats() {
+    try {
+      const s = await (await fetch("/api/stats")).json();
+      const cats = s.categories || {};
+      const total = Object.values(cats).reduce((a, b) => a + b, 0);
+      $("totals").replaceChildren(
+        ...[["Запросов", s.requests || 0], ["Данных защищено", total], ["Заблокировано", s.blocked || 0]].map(([name, n]) => {
+          const box = el("div"); box.append(el("b", "", String(n)), el("span", "", name)); return box;
+        })
+      );
+      const max = Math.max(1, ...Object.values(cats));
+      const rows = Object.keys(LABELS).filter((c) => cats[c]).map((c) => {
+        const row = el("div", "stat-row");
+        const bar = el("div", "bar"); const fill = el("span"); fill.style.width = (cats[c] / max * 100) + "%"; fill.style.background = colorOf(c); bar.append(fill);
+        row.append(el("span", "", LABELS[c]), bar, el("span", "stat-num", String(cats[c])));
+        return row;
+      });
+      $("stats").replaceChildren(...(rows.length ? rows : [el("span", "placeholder", "Пока ничего не защищено.")]));
+    } catch (e) { /* статистика необязательна для работы страницы */ }
+  }
+
+  async function postJson(url, text) {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    let data = {};
+    try { data = await r.json(); } catch (e) { /* пустой ответ */ }
+    return { ok: r.ok, status: r.status, data };
+  }
+
+  async function send() {
+    const text = $("text").value;
+    showError("");
+    if (!text.trim()) { showError("Введите текст или нажмите «Заполнить пример»."); return; }
+    $("send").disabled = true;
+    setPlaceholder($("masked"), "Обрабатываю…");
+    setPlaceholder($("answer"), "…");
+    try {
+      const check = await postJson("/api/check", text);
+      if (!check.ok) { showError(check.data.detail || "Ошибка проверки текста."); return; }
+      renderHighlighted($("raw"), text, check.data.findings);
+
+      const chat = await postJson("/api/chat", text);
+      if (chat.status === 403) {
+        const box = el("div", "blocked", "Текст заблокирован: найден гриф «Məxfi» / «Gizli». В AI ничего не отправлено.");
+        $("masked").replaceChildren(box);
+        setPlaceholder($("answer"), "Ответа нет: запрос не отправлялся.");
+      } else if (!chat.ok) {
+        showError(chat.data.detail || "Ошибка сервера.");
+        setPlaceholder($("masked"), "Не удалось отправить.");
+        setPlaceholder($("answer"), "—");
+      } else {
+        renderMasked($("masked"), chat.data.masked_text);
+        $("answer").textContent = chat.data.answer;
+        $("demo-banner").hidden = !chat.data.demo;
+      }
+    } catch (e) {
+      showError("Не удалось связаться с сервером. Он запущен?");
+      setPlaceholder($("masked"), "—");
+      setPlaceholder($("answer"), "—");
+    } finally {
+      $("send").disabled = false;
+      loadStats();
+    }
+  }
+
+  function updateCounter() { $("counter").textContent = $("text").value.length + " / " + MAX_LEN; }
+
+  $("send").addEventListener("click", send);
+  $("example").addEventListener("click", () => { $("text").value = SAMPLE; updateCounter(); });
+  $("example-secret").addEventListener("click", () => { $("text").value = SAMPLE_SECRET; updateCounter(); });
+  $("text").addEventListener("input", updateCounter);
+  updateCounter();
+  loadStats();
+</script>
 </body>
 </html>
