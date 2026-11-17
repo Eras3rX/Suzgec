@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Süzgəc — панель администратора</title>
+  <style>
+    :root {
+      --bg: #f3f5f8; --card: #ffffff; --text: #1b2733; --muted: #667085; --line: #e4e7ec;
+      --crit: #b42318; --crit-bg: #fef3f2; --crit-line: #fda29b; --good: #067647; --good-bg: #ecfdf3;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+    h1 { margin: 0; font-size: 24px; }
+    h2 { margin: 0 0 8px; font-size: 16px; }
+    .sub { color: var(--muted); margin: 2px 0 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 12px; }
+    .chip { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: #eef2f6; color: var(--muted); vertical-align: middle; margin-left: 8px; font-weight: 400; }
+    .chip.ok { background: var(--good-bg); color: var(--good); }
+    .chip.bad { background: var(--crit-bg); color: var(--crit); }
+
+    /* Красное критическое уведомление */
+    .alert { background: var(--crit); color: #fff; border-radius: 12px; padding: 16px 18px; margin-top: 12px;
+             box-shadow: 0 6px 24px rgba(180, 35, 24, .35); animation: pulse 1.6s ease-in-out infinite; }
+    .alert .level { font-size: 12px; font-weight: 800; letter-spacing: .12em; background: #fff; color: var(--crit); display: inline-block; padding: 2px 10px; border-radius: 999px; }
+    .alert .title { font-size: 20px; font-weight: 700; margin: 8px 0 4px; }
+    .alert .meta { opacity: .95; }
+    .alert button { margin-top: 12px; padding: 9px 18px; border: 0; border-radius: 8px; background: #fff; color: var(--crit); font: inherit; font-weight: 700; cursor: pointer; }
+    @keyframes pulse { 0%, 100% { box-shadow: 0 6px 24px rgba(180, 35, 24, .35); } 50% { box-shadow: 0 6px 34px rgba(180, 35, 24, .65); } }
+    @media (prefers-reduced-motion: reduce) { .alert { animation: none; } }
+
+    .banner { border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 14px; }
+    .banner.error { background: var(--crit-bg); color: var(--crit); border: 1px solid var(--crit-line); font-weight: 600; }
+    .totals { display: flex; flex-wrap: wrap; gap: 24px; }
+    .totals b { font-size: 26px; display: block; }
+    .totals span { color: var(--muted); font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    tr.new td { background: var(--crit-bg); }
+    .badge { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 2px 8px; border-radius: 999px; background: var(--crit); color: #fff; }
+    .note { color: var(--muted); font-size: 13px; }
+    .empty { color: var(--muted); font-style: italic; padding: 8px 0; }
+    input[type=password] { padding: 8px 10px; border: 1px solid #d0d5dd; border-radius: 8px; font: inherit; min-width: 220px; }
+    button.primary { padding: 8px 16px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; border-radius: 8px; font: inherit; cursor: pointer; }
+    @media (max-width: 640px) { .wrap { padding: 12px; } th:nth-child(4), td:nth-child(4) { display: none; } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Süzgəc · панель администратора <span id="live" class="chip">подключение…</span></h1>
+  <p class="sub">Попытки отправить в AI документы с грифом. Показываются время, категория грифа и канал. Текст документов не сохраняется и не показывается.</p>
+
+  <div id="alert" class="alert" role="alert" aria-live="assertive" hidden>
+    <span class="level">КРИТИЧНО</span>
+    <div class="title" id="alert-title"></div>
+    <div class="meta" id="alert-meta"></div>
+    <button id="ack">Принять к сведению</button>
+  </div>
+
+  <div id="error" class="banner error" role="alert" hidden></div>
+
+  <div id="login" class="card" hidden>
+    <h2>Нужен токен администратора</h2>
+    <div class="note" style="margin-bottom:8px">Токен задан на сервере переменной ADMIN_TOKEN. Он хранится только в памяти этой вкладки.</div>
+    <input type="password" id="token" autocomplete="off" placeholder="Токен">
+    <button class="primary" id="login-btn">Войти</button>
+  </div>
+
+  <div class="card">
+    <h2>Сводка</h2>
+    <div class="totals" id="totals"></div>
+    <div id="by-category" class="note" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h2>Инциденты</h2>
+    <table>
+      <thead><tr><th>Время</th><th>Уровень</th><th>Гриф</th><th>Канал</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty" class="empty">Блокировок пока не было.</div>
+    <div class="note" style="margin-top:10px">Журнал хранится только в памяти сервера (последние 200 записей) и очищается при его перезапуске.</div>
+  </div>
+</div>
+
+<script>
+  const CHANNELS = { chat: "Встроенный AI", mask: "Копировать и вставить", extension: "Расширение браузера" };
+  const $ = (id) => document.getElementById(id);
+
+  let incidents = [];   // новые сверху
+  let lastId = 0;
+  let ackId = 0;        // всё, что новее, считается непрочитанным (хранится только в памяти вкладки)
+  let token = "";
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function when(iso) { return new Date(iso).toLocaleString("ru-RU"); }
+
+  function render() {
+    const fresh = incidents.filter((i) => i.id > ackId);
+    $("alert").hidden = fresh.length === 0;
+    document.title = fresh.length ? "(" + fresh.length + ") КРИТИЧНО · Süzgəc" : "Süzgəc — панель администратора";
+    if (fresh.length) {
+      const last = fresh[0];
+      $("alert-title").textContent = fresh.length === 1
+        ? "Заблокирована попытка отправить документ с грифом «" + last.category_name + "»"
+        : "Заблокировано попыток отправить документы с грифом: " + fresh.length;
+      $("alert-meta").textContent = "Последняя: " + when(last.time) + " · гриф «" + last.category_name + "» · " + (CHANNELS[last.channel] || last.channel);
+    }
+
+    const rows = incidents.map((i) => {
+      const tr = el("tr", i.id > ackId ? "new" : "");
+      const level = el("td"); level.append(el("span", "badge", "КРИТИЧНО"));
+      tr.append(el("td", "", when(i.time)), level, el("td", "", i.category_name), el("td", "", CHANNELS[i.channel] || i.channel));
+      return tr;
+    });
+    $("rows").replaceChildren(...rows);
+    $("empty").hidden = incidents.length > 0;
+  }
+
+  function renderSummary(data) {
+    $("totals").replaceChildren(
+      ...[["Всего блокировок", data.total], ["Непрочитанных", incidents.filter((i) => i.id > ackId).length]].map(([name, n]) => {
+        const box = el("div"); box.append(el("b", "", String(n)), el("span", "", name)); return box;
+      })
+    );
+    const parts = Object.entries(data.by_category || {}).map(([k, v]) => "«" + k + "»: " + v);
+    $("by-category").textContent = parts.length ? "По грифам: " + parts.join(", ") : "";
+  }
+
+  function setLive(ok, text) { $("live").textContent = text; $("live").className = "chip " + (ok ? "ok" : "bad"); }
+  function showError(msg) { $("error").textContent = msg; $("error").hidden = !msg; }
+
+  async function poll() {
+    try {
+      const headers = token ? { "X-Admin-Token": token } : {};
+      const r = await fetch("/api/admin/incidents?since=" + lastId, { headers, cache: "no-store" });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 401) { $("login").hidden = false; showError(token ? "Неверный токен." : ""); setLive(false, "нужен токен"); return; }
+      if (r.status === 403) { showError(data.detail || "Доступ запрещён."); setLive(false, "нет доступа"); return; }
+      if (!r.ok) { showError("Ошибка сервера."); setLive(false, "ошибка"); return; }
+      $("login").hidden = true; showError("");
+      setLive(true, "онлайн");
+      if (data.last_id < lastId) {  // сервер перезапускали: журнал начался заново, загружаем его с нуля
+        incidents = []; ackId = 0; lastId = 0;
+        return poll();
+      }
+      if (data.incidents.length) incidents = data.incidents.concat(incidents).slice(0, 200);
+      lastId = data.last_id;
+      render(); renderSummary(data);
+    } catch (e) {
+      setLive(false, "нет связи");
+    }
+  }
+
+  $("ack").addEventListener("click", () => { ackId = lastId; render(); poll(); });
+  $("login-btn").addEventListener("click", () => { token = $("token").value; lastId = 0; incidents = []; poll(); });
+  $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") $("login-btn").click(); });
+
+  poll();
+  setInterval(poll, 3000);
+</script>
+</body>
+</html>

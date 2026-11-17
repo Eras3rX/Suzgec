@@ -177,6 +177,7 @@
     <div class="note" style="margin-bottom:10px">Только счётчики по категориям. Тексты не сохраняются и не показываются.</div>
     <div id="totals" class="totals"></div>
     <div id="stats"></div>
+    <div class="note" style="margin-top:10px"><a href="/admin">Панель администратора</a>: уведомления о блокировках по грифу (доступна только с этого компьютера).</div>
   </section>
 </div>
 
@@ -226,6 +227,13 @@
     return "(правила: " + n.rule + ", AI: " + n.ai + ", оба: " + n["rule+ai"] + ")";
   }
   function showMsg(id, msg) { $(id).textContent = msg; $(id).hidden = !msg; }
+
+  // Сообщение о блокировке по грифу (текст сообщения приходит от сервера на азербайджанском, без текста документа).
+  function blockedBox(message) {
+    const box = el("div", "blocked");
+    box.append(el("div", "", "⛔ Sorğu bloklandı"), el("div", "", message || "Mətn qrif səbəbindən bloklandı."));
+    return box;
+  }
 
   // Легенда цветов
   for (const [cat, name] of Object.entries(LABELS)) {
@@ -356,7 +364,7 @@
       resetStep2();
       if (r.status === 403) {
         renderHighlighted($("raw"), text, [], "src-summary");
-        $("masked").replaceChildren(el("div", "blocked", "Текст заблокирован: найден гриф «Məxfi» / «Gizli». В AI такой текст отправлять нельзя."));
+        $("masked").replaceChildren(blockedBox(r.data.detail));
         return;
       }
       if (!r.ok) { showMsg("err-paste", r.data.detail || "Ошибка сервера."); return; }
@@ -435,7 +443,7 @@
 
       const chat = await postJson("/api/chat", text);
       if (chat.status === 403) {
-        $("ai-masked").replaceChildren(el("div", "blocked", "Текст заблокирован: найден гриф «Məxfi» / «Gizli». В AI ничего не отправлено."));
+        $("ai-masked").replaceChildren(blockedBox(chat.data.detail));
         setPlaceholder($("ai-answer"), "Ответа нет: запрос не отправлялся.");
       } else if (!chat.ok) {
         showMsg("err-ai", chat.data.detail || "Ошибка сервера.");

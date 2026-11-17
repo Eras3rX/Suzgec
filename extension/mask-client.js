@@ -47,10 +47,14 @@
     try {
       var r = await request(server, "/api/mask", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // X-Suzgec-Client: чтобы в панели администратора был виден канал «расширение» (текст не передаётся)
+        headers: { "Content-Type": "application/json", "X-Suzgec-Client": "extension" },
         body: JSON.stringify({ text: text }),
       });
-      if (r.status === 403) return { ok: false, error: "classified" };
+      if (r.status === 403) {
+        var blocked = await r.json().catch(function () { return {}; });
+        return { ok: false, error: "classified", category: blocked.category || "" };
+      }
       if (r.status === 413) return { ok: false, error: "too_long" };
       if (r.status === 429) return { ok: false, error: "rate_limited" };
       if (!r.ok) return { ok: false, error: "server_error" };

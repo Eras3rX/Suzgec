@@ -229,26 +229,70 @@ def _fin_shape_ok(token: str) -> bool:
     return len(token) == 7 and any(c.isdigit() for c in token) and any(c.isalpha() for c in token)
 
 
-# ---------- Гриф «Məxfi» / «Gizli» ----------
+# ---------- Грифы секретности ----------
 
-_CLS_FOLD = str.maketrans({"ə": "e", "Ə": "e", "ı": "i", "İ": "i", "I": "i"})
+# Ключ -> название грифа (так он показывается пользователю и в панели администратора).
+# Порядок от строгого к мягкому: если в тексте несколько грифов, classify() возвращает самый строгий.
+CLASSIFICATION_NAMES = {
+    "tam_mexfi": "Tam məxfi",
+    "mexfi": "Məxfi",
+    "gizli": "Gizli",
+    "xidmeti": "Xidməti istifadə üçün",  # в том числе сокращение «XİÜ»
+}
+
+# Сравниваем без диакритики и регистра: ə→e, ı/İ/I→i, ö→o, ü→u, ş→s, ç→c, ğ→g.
+_CLS_FOLD = str.maketrans({
+    "ə": "e", "Ə": "e", "ı": "i", "İ": "i", "I": "i", "ö": "o", "Ö": "o",
+    "ü": "u", "Ü": "u", "ş": "s", "Ş": "s", "ç": "c", "Ç": "c", "ğ": "g", "Ğ": "g",
+})
+_WORD_GAP = r"[\s.\-_·•–—]{1,6}"  # разрыв между словами грифа: пробелы, переносы, дефисы…
 
 
-def _word_re(word: str) -> re.Pattern:
-    return re.compile(r"(?<![a-z0-9])" + _G.join(word) + r"(?![a-z0-9])")
+def _phrase_re(phrase: str) -> re.Pattern:
+    """Шаблон грифа: между буквами допускаются разделители («M ə x f i»), между словами — разрыв."""
+    words = phrase.split()
+    return re.compile(r"(?<![a-z0-9])" + _WORD_GAP.join(_G.join(w) for w in words) + r"(?![a-z0-9])")
 
 
-_CLASSIFIED = [_word_re("mexfi"), _word_re("gizli")]
+_CLASSIFIED_PATTERNS = [
+    ("tam_mexfi", _phrase_re("tam mexfi")),
+    ("mexfi", _phrase_re("mexfi")),
+    ("gizli", _phrase_re("gizli")),
+    ("xidmeti", _phrase_re("xidmeti istifade ucun")),
+]
+_XIU = _phrase_re("xiu")  # «XİÜ»: короткое, поэтому проверяется строже (см. _has_xiu)
+
+
+def _has_xiu(plain: str, folded_lower: str) -> bool:
+    """«XİÜ» принимаем, если в написании есть хотя бы две заглавные буквы («XİÜ», «XIU», «XiÜ») или буква
+    «ü/Ü» («xiü»). Обычное «Xiu» (китайское имя) и «xiu» без диакритики грифом не считаются."""
+    for m in _XIU.finditer(folded_lower):
+        original = plain[m.start():m.end()] if len(plain) == len(folded_lower) else ""
+        letters = [c for c in original if c.isalpha()]
+        if not original or sum(c.isupper() for c in letters) >= 2 or any(c in "üÜ" for c in letters):
+            return True
+    return False
+
+
+def classify(text: str) -> str | None:
+    """Гриф секретности в тексте: ключ из CLASSIFICATION_NAMES (самый строгий) или None.
+
+    Находит «Məxfi», «Tam məxfi», «Gizli», «Xidməti istifadə üçün», «XİÜ» в любом регистре, без
+    диакритики («mexfi», «xidmeti istifade ucun»), с пробелами, дефисами, точками и переносами между
+    буквами и словами, с кириллическими двойниками и невидимыми символами. Слова, где гриф — только
+    начало («Gizlilik», «Məxfilik»), грифом не считаются.
+    """
+    plain, folded, _ = _normalize(text)
+    f = folded.translate(_CLS_FOLD).lower()
+    for key, pattern in _CLASSIFIED_PATTERNS:
+        if pattern.search(f):
+            return key
+    return "xidmeti" if _has_xiu(plain, f) else None
 
 
 def is_classified(text: str) -> bool:
-    """Есть ли гриф «Məxfi» / «Gizli» — такой текст блокируется целиком.
-
-    Регистр, двойники-буквы кириллицы, невидимые символы и разделители между буквами не мешают.
-    """
-    _, folded, _ = _normalize(text)
-    f = folded.translate(_CLS_FOLD).lower()
-    return any(p.search(f) for p in _CLASSIFIED)
+    """Есть ли в тексте гриф секретности: такой текст блокируется целиком и не маскируется."""
+    return classify(text) is not None
 
 
 # ---------- Имена ----------

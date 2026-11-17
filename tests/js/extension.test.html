@@ -147,7 +147,16 @@
       pasteInto(ta, "Məxfi: FİN " + SECRET_FIN);
       truthy(await waitFor(() => toastText() !== ""));
       eq(ta.value, "было");
-      truthy(toastText().includes("Məxfi/Gizli"), toastText());
+      truthy(toastText().includes("«Məxfi»") && toastText().includes("bloklandı"), toastText());
+    });
+
+    test("гриф «Tam məxfi» без диакритики и с пробелами: блокировка, в уведомлении название грифа", async () => {
+      ta.value = "было"; resetToast();
+      pasteInto(ta, "tam mexfi  sənəd: FİN " + SECRET_FIN);
+      truthy(await waitFor(() => toastText() !== ""));
+      eq(ta.value, "было");
+      truthy(toastText().includes("«Tam məxfi»"), toastText());
+      truthy(!toastText().includes(SECRET_FIN), "в уведомлении не должно быть текста документа");
     });
 
     test("сервер недоступен (по умолчанию): мягкая блокировка, оригинал не вставляется", async () => {

@@ -22,7 +22,9 @@
 
   var MESSAGES = {
     protected: function (n) { return "Süzgəc: " + n + " məlumat qorundu"; },
-    classified: "Süzgəc: Məxfi/Gizli qeydli mətn bloklandı, yapışdırılmadı",
+    classified: function (category) {
+      return "Süzgəc: " + (category ? "«" + category + "»" : "Məxfi/Gizli") + " qrifli mətn bloklandı, yapışdırılmadı. İnzibatçıya bildiriş göndərildi";
+    },
     too_long: "Süzgəc: mətn çox uzundur (maks. 100 000 simvol), yapışdırılmadı",
     rate_limited: "Süzgəc: çox sorğu göndərildi, bir az gözləyin. Mətn yapışdırılmadı",
     blocked: "Süzgəc serveri əlçatmazdır, mətn yapışdırılmadı. Serveri işə salın",
@@ -224,7 +226,7 @@
     }
     var error = result && result.error;
     // Текст с грифом, слишком большой текст и превышение лимита: оригинал не вставляем никогда.
-    if (error === "classified") return toast(MESSAGES.classified, "error");
+    if (error === "classified") return toast(MESSAGES.classified(result.category), "error");
     if (error === "too_long") return toast(MESSAGES.too_long, "error");
     if (error === "rate_limited") return toast(MESSAGES.rate_limited, "warn");
     // Сервер недоступен: по настройке либо блокируем (безопаснее), либо вставляем как есть.

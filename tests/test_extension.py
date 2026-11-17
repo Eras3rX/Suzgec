@@ -78,3 +78,11 @@ def test_server_response_has_the_fields_the_extension_reads():
     assert body["masked_text"] == "FİN [FIN_1]"
     assert len(body["spans"]) == 1
     assert "5ARZ8D2" not in json.dumps(body)  # сервер значений не возвращает
+
+
+def test_extension_tells_the_server_which_channel_it_is_without_sending_text():
+    """Заголовок X-Suzgec-Client нужен, чтобы в панели администратора было видно канал «расширение»."""
+    client_js = (EXT / "mask-client.js").read_text(encoding="utf-8")
+    assert '"X-Suzgec-Client": "extension"' in client_js
+    content_js = (EXT / "content.js").read_text(encoding="utf-8")
+    assert "qrifli mətn bloklandı" in content_js and "İnzibatçıya bildiriş göndərildi" in content_js

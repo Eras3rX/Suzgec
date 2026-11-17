@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 from collections import Counter
@@ -19,8 +20,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.detector import detect, is_classified
 from app import ml_detector
+from app.detector import CLASSIFICATION_NAMES, classify, detect
+from app.incidents import IncidentLog
 from app.llm import LLMError, ai_enabled, ask_llm
 from app.masker import mask, restore_tolerant
 from app.ratelimit import RateLimiter
@@ -34,7 +36,9 @@ RATE_LIMITED_PATHS = {"/api/check", "/api/mask", "/api/chat"}
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 limiter = RateLimiter(RATE_LIMIT_PER_MINUTE, 60.0)
+incidents = IncidentLog()  # журнал блокировок по грифу: время, категория, канал (без текста)
 _log = logging.getLogger("suzgec")
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -48,6 +52,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # Статистика — только счётчики по категориям, никаких текстов.
 _stats_lock = Lock()
 _category_counts: Counter = Counter()
+_blocked_categories: Counter = Counter()  # сколько раз заблокирован каждый гриф
 _source_counts: Counter = Counter()  # кто находил: rule / ai / rule+ai
 _totals: Counter = Counter()
 _daily = {"day": None, "count": 0}  # сколько раз сегодня (UTC) звали настоящий AI
@@ -117,26 +122,48 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+def _blocked_message(category: str) -> str:
+    """Сообщение пользователю на азербайджанском. Без текста документа."""
+    name = CLASSIFICATION_NAMES[category]
+    return (f"«{name}» qrifi aşkarlandı. Sorğu tam bloklandı: mətn maskalanmadı və AI-yə göndərilmədi. "
+            "İnzibatçıya bildiriş göndərildi.")
+
+
 @app.post("/api/check")
 def check(body: TextIn):
+    category = classify(body.text)
+    if category:
+        # Текст с грифом дальше не обрабатываем: ни правила, ни модель его не видят.
+        return {"blocked": True, "category": CLASSIFICATION_NAMES[category],
+                "message": _blocked_message(category), "findings": []}
     return {
-        "blocked": is_classified(body.text),
+        "blocked": False,
         "findings": [
             {"category": f.category, "start": f.start, "end": f.end, "source": f.source} for f in detect(body.text)
         ],
     }
 
 
-_BLOCKED_DETAIL = "Текст с грифом «Məxfi» / «Gizli» заблокирован и не отправлен в ИИ."
+def _block_classified(text: str, channel: str, request: Request) -> JSONResponse | None:
+    """Текст с грифом блокируется целиком: не маскируется, в AI не уходит.
 
-
-def _block_classified(text: str) -> None:
-    """Текст с грифом блокируется целиком: считаем блокировку и отказываем."""
-    if is_classified(text):
-        with _stats_lock:
-            _totals["requests"] += 1
-            _totals["blocked"] += 1
-        raise HTTPException(status_code=403, detail=_BLOCKED_DETAIL)
+    Записываем в журнал инцидентов время, категорию и канал (без текста) и отвечаем 403.
+    """
+    category = classify(text)
+    if category is None:
+        return None
+    if request.headers.get("x-suzgec-client", "").lower() == "extension":
+        channel = "extension"
+    name = CLASSIFICATION_NAMES[category]
+    with _stats_lock:
+        _totals["requests"] += 1
+        _totals["blocked"] += 1
+        _blocked_categories[name] += 1
+    incidents.add(category, name, channel)
+    return JSONResponse(
+        status_code=403,
+        content={"detail": _blocked_message(category), "blocked": True, "category": name},
+    )
 
 
 @app.get("/api/config")
@@ -146,14 +173,16 @@ def config():
 
 
 @app.post("/api/mask")
-def mask_only(body: TextIn):
+def mask_only(body: TextIn, request: Request):
     """Режим «копировать и вставить»: замаскировать текст, AI не вызывается.
 
     Значения персональных данных в ответ НЕ возвращаются: только замаскированный текст и позиции
     (spans). Таблицу «метка → значение» браузер собирает сам из текста, который пользователь
     уже держит у себя, и хранит только в памяти вкладки.
     """
-    _block_classified(body.text)
+    blocked = _block_classified(body.text, "mask", request)
+    if blocked:
+        return blocked
     masked = mask(body.text)
     with _stats_lock:
         _totals["requests"] += 1
@@ -170,8 +199,10 @@ def mask_only(body: TextIn):
 
 
 @app.post("/api/chat")
-def chat(body: TextIn):
-    _block_classified(body.text)
+def chat(body: TextIn, request: Request):
+    blocked = _block_classified(body.text, "chat", request)
+    if blocked:
+        return blocked
     if not ai_enabled():
         raise HTTPException(
             status_code=503,
@@ -215,4 +246,41 @@ def _restore_warnings(info, total: int) -> list[str]:
 @app.get("/api/stats")
 def stats():
     with _stats_lock:
-        return {"categories": dict(_category_counts), "sources": dict(_source_counts), **dict(_totals)}
+        return {
+            "categories": dict(_category_counts),
+            "sources": dict(_source_counts),
+            "blocked_categories": dict(_blocked_categories),
+            **dict(_totals),
+        }
+
+
+# ---------- Панель администратора ----------
+# Доступ: если задан ADMIN_TOKEN, нужен заголовок X-Admin-Token с этим значением; если не задан,
+# панель открыта только с этого же компьютера (127.0.0.1). На публичном хостинге без токена она закрыта.
+
+_LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
+def require_admin(request: Request) -> None:
+    token = os.getenv("ADMIN_TOKEN", "")
+    if token:
+        given = request.headers.get("x-admin-token", "")
+        if not hmac.compare_digest(given.encode("utf-8"), token.encode("utf-8")):
+            raise HTTPException(status_code=401, detail="Нужен токен администратора.")
+    elif (request.client.host if request.client else "") not in _LOCAL_HOSTS:
+        raise HTTPException(
+            status_code=403,
+            detail="Панель администратора доступна только с этого компьютера. Для удалённого доступа задайте ADMIN_TOKEN.",
+        )
+
+
+@app.get("/admin")
+def admin_page():
+    return FileResponse(STATIC_DIR / "admin.html")
+
+
+@app.get("/api/admin/incidents")
+def admin_incidents(request: Request, since: int = 0):
+    """Блокировки по грифу: время, категория, канал. Текста документов здесь нет и быть не может."""
+    require_admin(request)
+    return {"incidents": incidents.since(since), **incidents.summary()}
