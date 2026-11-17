@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+models
+data
+tests
+deploy
+extension
+.env
+deploy-secrets.local.txt
+tunnel.log
+demo-link.txt
