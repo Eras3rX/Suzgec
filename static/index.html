@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Süzgəc</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f4f6f8; color: #1b2733; }
+    h1 { margin: 0 0 4px; }
+    textarea { width: 100%; box-sizing: border-box; height: 110px; padding: 8px; font: inherit; }
+    button { margin: 8px 0; padding: 8px 20px; font: inherit; cursor: pointer; }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .box { background: #fff; border-radius: 8px; padding: 12px; min-height: 140px; white-space: pre-wrap; word-break: break-word; }
+    .box h2 { margin: 0 0 8px; font-size: 16px; }
+    .bad h2 { color: #b42318; }
+    .good h2 { color: #067647; }
+    .error { color: #b42318; font-weight: 600; }
+    .note { color: #667085; font-size: 13px; }
+    @media (max-width: 700px) { .cols { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>Süzgəc</h1>
+  <p class="note">Вставьте текст с (синтетическими!) персональными данными и нажмите «Отправить».</p>
+  <textarea id="text">Salam, mən Elvin Məmmədov. FİN: 1A2B3C4, telefon +994 50 123 45 67, email elvin@example.com. Помоги составить письмо.</textarea>
+  <br><button id="send">Отправить</button>
+  <div id="error" class="error"></div>
+
+  <div class="cols">
+    <div class="box bad"><h2>Без Süzgəc (что ушло бы в AI)</h2><div id="raw"></div></div>
+    <div class="box good"><h2>С Süzgəc</h2>
+      <div class="note">Что получил ИИ:</div><div id="masked"></div>
+      <div class="note" style="margin-top:10px">Ответ с восстановленными данными:</div><div id="answer"></div>
+    </div>
+  </div>
+
+  <h2>Статистика (только счётчики по категориям)</h2>
+  <div id="stats" class="box" style="min-height:0"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    async function loadStats() {
+      const r = await fetch("/api/stats");
+      const s = await r.json();
+      const cats = Object.entries(s.categories || {}).map(([k, v]) => k + ": " + v).join(", ") || "пока ничего";
+      $("stats").textContent = "Запросов: " + (s.requests || 0) + ", заблокировано: " + (s.blocked || 0) + ". Найдено — " + cats;
+    }
+
+    $("send").addEventListener("click", async () => {
+      const text = $("text").value;
+      $("error").textContent = "";
+      $("raw").textContent = text;
+      $("masked").textContent = "";
+      $("answer").textContent = "";
+      try {
+        const r = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        const data = await r.json();
+        if (!r.ok) { $("error").textContent = data.detail || "Ошибка"; }
+        else { $("masked").textContent = data.masked_text; $("answer").textContent = data.answer; }
+      } catch (e) {
+        $("error").textContent = "Не удалось связаться с сервером.";
+      }
+      loadStats();
+    });
+
+    loadStats();
+  </script>
+</body>
+</html>
