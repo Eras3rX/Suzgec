@@ -16,7 +16,7 @@
   function labelRegex() {
     return new RegExp(
       "\\[\\s*(" + CATS + ")\\s*[_\\- ]\\s*(\\d+)\\s*\\]" +
-        "|(^|[^A-Za-z0-9_])(" + CATS + ")_(\\d+)(?![A-Za-z0-9_])",
+        "|(^|[^A-Za-z0-9_])(" + CATS + ")_?(\\d+)(?![A-Za-z0-9_])",
       "gi"
     );
   }
@@ -64,6 +64,10 @@
       var category = (viaBrackets ? m[1] : m[4]).toUpperCase();
       var label = "[" + category + "_" + (viaBrackets ? m[2] : m[5]) + "]";
 
+      // «Ad1» без скобок и подчёркивания считаем меткой, только если такая метка есть в вашем тексте;
+      // иначе это обычное слово вроде «ID5».
+      if (!viaBrackets && raw.indexOf("_") < 0 && !has(mapping, label)) continue;
+
       pushText(answer.slice(last, start));
       last = start + raw.length;
 
@@ -78,9 +82,15 @@
         }
       } else {
         var guess = has(mapping, label) ? label : null;
-        parts.push({ type: "altered", text: raw, guess: guess });
+        if (guess) {
+          // Метка искажена, но понятно какая: восстанавливаем по смыслу и предупреждаем.
+          parts.push({ type: "value", text: mapping[guess], label: guess, category: category, fuzzy: true });
+          touched[guess] = true;
+          restored++;
+        } else {
+          parts.push({ type: "altered", text: raw, guess: null });
+        }
         altered.push({ text: raw, guess: guess });
-        if (guess) touched[guess] = true;
       }
     }
     pushText(answer.slice(last));
@@ -90,14 +100,19 @@
     });
 
     var warnings = [];
-    if (altered.length) {
+    var fixed = altered.filter(function (a) { return a.guess; });
+    var broken = altered.filter(function (a) { return !a.guess; });
+    if (fixed.length) {
+      warnings.push(
+        "AI изменил запись меток: " +
+          fixed.map(function (a) { return "«" + a.text + "» (→ " + a.guess + ")"; }).join(", ") +
+          ". Данные восстановлены по смыслу, проверьте ответ."
+      );
+    }
+    if (broken.length) {
       warnings.push(
         "AI изменил метки: " +
-          altered
-            .map(function (a) {
-              return "«" + a.text + "»" + (a.guess ? " (похоже на " + a.guess + ")" : "");
-            })
-            .join(", ") +
+          broken.map(function (a) { return "«" + a.text + "»"; }).join(", ") +
           ". На их место данные не подставлены."
       );
     }

@@ -153,6 +153,7 @@
       <button id="send" class="primary">Отправить в AI через Süzgəc</button>
     </div>
     <div id="err-ai" class="banner error" role="alert" hidden></div>
+    <div id="ai-warnings" class="banner warn" hidden></div>
     <div class="cols">
       <section class="pane bad">
         <h2 class="bad">Без Süzgəc</h2>
@@ -382,7 +383,7 @@
 
     const res = Suzgec.restoreAnswer(answer, session.mapping);
     const nodes = res.parts.map((p) => {
-      if (p.type === "value") return mark(p.text, p.category, "Восстановлено вместо " + p.label);
+      if (p.type === "value") return mark(p.text, p.category, "Восстановлено вместо " + p.label + (p.fuzzy ? " (AI исказил метку)" : ""));
       if (p.type === "altered" || p.type === "unknown") {
         const m = el("mark", "alt", p.text);
         m.title = p.type === "altered" ? "Метка изменена" : "Метки не было в вашем тексте";
@@ -422,6 +423,7 @@
   async function sendToAi() {
     const text = inputText();
     showMsg("err-ai", "");
+    $("ai-warnings").hidden = true;
     if (!text) { showMsg("err-ai", "Введите текст или нажмите «Заполнить пример»."); return; }
     $("send").disabled = true;
     setPlaceholder($("ai-masked"), "Обрабатываю…");
@@ -442,6 +444,13 @@
       } else {
         renderMasked($("ai-masked"), chat.data.masked_text);
         $("ai-answer").textContent = chat.data.answer;
+        const warnings = chat.data.warnings || [];
+        if (warnings.length) {
+          const list = el("ul");
+          warnings.forEach((w) => list.append(el("li", "", w)));
+          $("ai-warnings").replaceChildren(el("b", "", "Проверьте ответ:"), list);
+          $("ai-warnings").hidden = false;
+        }
       }
     } catch (e) {
       showMsg("err-ai", "Не удалось связаться с сервером. Он запущен?");

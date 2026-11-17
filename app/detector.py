@@ -302,10 +302,38 @@ def _fold_mixed(word: str) -> str:
     return word
 
 
+# Слова, которые стоят рядом с фамилией, но именем не являются: должности, обращения, части названий.
+_NOT_NAME_WORDS = {
+    _az_key(w)
+    for w in (
+        "Cənab", "Xanım", "Bəy", "Prezident", "Direktor", "Müəllim", "Doktor", "Professor", "Prof", "Akademik",
+        "General", "Polkovnik", "Mühəndis", "Rəis", "Müdir", "Nazir", "Prospekti", "Küçəsi", "Meydanı",
+        "Universiteti", "İnstitutu", "Şirkəti", "Məktəbi", "Господин", "Госпожа", "Директор", "Президент",
+        "Профессор", "Доктор", "Академик", "Генерал", "Инженер", "Министр", "Улица", "Проспект",
+        "Университет", "Институт", "Компания", "Школа", "Мистер", "Миссис",
+    )
+}
+# Кириллические окончания фамилий: для них «подсказкой» служит заглавное слово слева (имя).
+_CYR_SURNAME_ENDINGS = ("ов", "ова", "ев", "ева")
+
+
+def _name_like(word: str) -> bool:
+    """Похоже на имя: буквы, с заглавной, не аббревиатура."""
+    return len(word) >= 2 and word.isalpha() and word[0].isupper() and not word.isupper()
+
+
+def _sentence_start(text: str, pos: int) -> bool:
+    """Слово в позиции pos стоит в начале предложения? (после двоеточия — нет: там часто начинается список)"""
+    j = pos - 1
+    while j >= 0 and text[j] in " \t":
+        j -= 1
+    return j < 0 or text[j] in ".!?…\n\r"
+
+
 def _find_names(text: str) -> list[tuple[int, int]]:
-    """Позиции ФИО (по словарю имён и суффиксам фамилий)."""
+    """Позиции ФИО (по словарю имён, суффиксам фамилий и соседству имени с фамилией)."""
     # 1. Помечаем каждое слово: first / strong / weak / patr (и lc — «в нижнем регистре») или None.
-    tokens: list[tuple[int, int, str | None]] = []
+    toks: list[list] = []  # [начало, конец, слово, ключ, вид]
     prev_kind: str | None = None
     for m in _WORD.finditer(text):
         word = _fold_mixed(m.group())
@@ -321,12 +349,27 @@ def _find_names(text: str) -> list[tuple[int, int]]:
                 kind = "weak"
         if kind is None and key in _PATRONYMIC_KEYS and prev_kind is not None:
             kind = "patr"  # «oğlu»/«qızı» бывают только после имени
-        tokens.append((m.start(), m.end(), kind))
+        toks.append([m.start(), m.end(), word, key, kind])
         prev_kind = kind
+
+    # 1б. Незнакомое имя прямо перед фамилией: «Али Алиев», «Maqa Əliyev». Слово слева с заглавной,
+    #     не в начале предложения и не должность/обращение — считаем именем. Это же «включает»
+    #     кириллическую фамилию на -ов/-ев, которой иначе нужно было бы имя из словаря.
+    for i, t in enumerate(toks):
+        if t[4] not in ("strong", "weak") or i == 0:
+            continue
+        c = toks[i - 1]
+        if c[4] is not None or not _name_like(c[2]) or c[3] in _NOT_NAME_WORDS:
+            continue
+        if c[1] >= t[0] or text[c[1]:t[0]].strip(" \t") != "" or _sentence_start(text, c[0]):
+            continue
+        c[4] = "guess"
+        if t[4] == "weak" and t[3].endswith(_CYR_SURNAME_ENDINGS):
+            t[4] = "strong_ctx"
 
     # 2. Склеиваем соседние слова-имена (через пробел) в одно ФИО.
     groups: list[tuple[int, int, set[str]]] = []
-    for start, end, kind in tokens:
+    for start, end, _word, _key, kind in toks:
         if kind is None:
             continue
         if groups and start > groups[-1][1] and text[groups[-1][1]:start].strip(" \t") == "":
@@ -335,12 +378,12 @@ def _find_names(text: str) -> list[tuple[int, int]]:
         else:
             groups.append((start, end, {kind}))
 
-    # 3. ФИО должно содержать имя с заглавной буквой или сильную фамилию. Всё в нижнем регистре
+    # 3. ФИО должно содержать имя с заглавной буквой или фамилию. Всё в нижнем регистре
     #    принимаем только парой «имя + фамилия» (иначе обычные слова вроде «anar» — гранат).
     return [
         (s, e)
         for s, e, kinds in groups
-        if kinds & {"first", "strong"} or {"first_lc", "strong_lc"} <= kinds
+        if kinds & {"first", "strong", "strong_ctx"} or {"first_lc", "strong_lc"} <= kinds
     ]
 
 

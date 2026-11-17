@@ -78,16 +78,37 @@
       const r = restoreAnswer("Привет [ad_1], [FIN 1], [Tel-1] и FIN_1.", MAP);
       eq(r.altered.map((a) => a.text), ["[ad_1]", "[FIN 1]", "[Tel-1]", "FIN_1"]);
       eq(r.altered.map((a) => a.guess), ["[AD_1]", "[FIN_1]", "[TEL_1]", "[FIN_1]"]);
-      eq(r.restored, 0);
-      eq(r.text, "Привет [ad_1], [FIN 1], [Tel-1] и FIN_1."); // испорченные не трогаем
-      eq(r.missing, []); // они «найдены», но испорчены — об этом отдельное предупреждение
-      if (!r.warnings[0].includes("AI изменил метки")) throw new Error(r.warnings[0]);
+      // метка понятна, хоть и искажена: восстанавливаем по смыслу и предупреждаем
+      eq(r.restored, 4);
+      eq(r.text, "Привет Elvin Məmmədov, 1A2B3C4, +994 50 123 45 67 и 1A2B3C4.");
+      eq(r.missing, []);
+      if (!r.warnings[0].includes("AI изменил запись меток") || !r.warnings[0].includes("восстановлены по смыслу")) throw new Error(r.warnings[0]);
     });
 
-    test("испорченная метка не мешает восстановить остальные", () => {
+    test("искажённая метка не мешает восстановить остальные", () => {
       const r = restoreAnswer("[AD_1] звонил на [tel_1], FİN [FIN_1]", MAP);
-      eq(r.text, "Elvin Məmmədov звонил на [tel_1], FİN 1A2B3C4");
-      eq(r.restored, 2); eq(r.altered.length, 1);
+      eq(r.text, "Elvin Məmmədov звонил на +994 50 123 45 67, FİN 1A2B3C4");
+      eq(r.restored, 3); eq(r.altered.length, 1);
+    });
+
+    test("«Ad1, Ad2, Ad3» без скобок восстанавливаются (пример из задания)", () => {
+      const m = { "[AD_1]": "Али Алиев", "[AD_2]": "Маqa Алиев", "[AD_3]": "Ильхам Мурадов" };
+      const r = restoreAnswer("В списке 3 человека: Ad1, Ad2, Ad3", m);
+      eq(r.text, "В списке 3 человека: Али Алиев, Маqa Алиев, Ильхам Мурадов");
+      eq(r.restored, 3); eq(r.missing, []);
+      eq(r.warnings.length, 1);
+    });
+
+    test("слово вроде «ID5» без такой метки в тексте не считается меткой", () => {
+      const r = restoreAnswer("Модель ID5 и FIN2 в каталоге", { "[AD_1]": "Имя" });
+      eq(r.text, "Модель ID5 и FIN2 в каталоге");
+      eq(r.altered, []); eq(r.unknown, []);
+    });
+
+    test("искажённая метка, которой нет в вашем тексте, не восстанавливается", () => {
+      const r = restoreAnswer("Код [fin 9] выдан", { "[FIN_1]": "1A2B3C4" });
+      eq(r.text, "Код [fin 9] выдан");
+      eq(r.restored, 0); eq(r.altered.map((a) => a.guess), [null]);
     });
 
     test("метка, которой не было в тексте, остаётся как есть и даёт предупреждение", () => {
@@ -119,11 +140,12 @@
       eq(r.restored, 3); eq(r.warnings, []);
     });
 
-    test("испорченные ADRES/TARIX замечаются", () => {
+    test("искажённые ADRES/TARIX восстанавливаются по смыслу", () => {
       const m = { "[ADRES_1]": "Bakı, Nizami küçəsi 45", "[TARIX_1]": "12.05.1990" };
       const r = restoreAnswer("Адрес [adres 1], дата TARIX_1.", m);
       eq(r.altered.map((a) => a.guess), ["[ADRES_1]", "[TARIX_1]"]);
-      eq(r.restored, 0);
+      eq(r.restored, 2);
+      eq(r.text, "Адрес Bakı, Nizami küçəsi 45, дата 12.05.1990.");
     });
 
     // Вывод

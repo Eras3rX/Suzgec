@@ -136,7 +136,8 @@ def test_hybrid_combines_both_and_marks_sources(fake_model):
         ("FIN", "5ARZ8D2", "rule"),
         ("ADRES", "Bakı şəhəri, Nizami küçəsi 45", "ai"),
     ]
-    assert pairs(detect(t, use_model=False)) == [("AD", "Hüseynova", "rule"), ("FIN", "5ARZ8D2", "rule")]
+    # правила сами находят имя рядом с фамилией («Aytac Hüseynova»), модель с ними согласна
+    assert pairs(detect(t, use_model=False)) == [("AD", "Aytac Hüseynova", "rule"), ("FIN", "5ARZ8D2", "rule")]
 
 
 def test_model_only_name_is_found_when_rules_do_not_know_it(fake_model):

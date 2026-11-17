@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from app.detector import detect, is_classified
 from app import ml_detector
 from app.llm import LLMError, ai_enabled, ask_llm
-from app.masker import mask, restore
+from app.masker import mask, restore_tolerant
 from app.ratelimit import RateLimiter
 
 MAX_TEXT_LENGTH = 5000
@@ -191,11 +191,25 @@ def chat(body: TextIn):
         _category_counts.update(masked.counts)
         _source_counts.update(masked.source_counts)
 
+    answer, info = restore_tolerant(raw_answer, masked.mapping)
     return {
         "masked_text": masked.masked_text,
-        "answer": restore(raw_answer, masked.mapping),
+        "answer": answer,
         "found": dict(masked.counts),
+        "warnings": _restore_warnings(info, len(masked.mapping)),
     }
+
+
+def _restore_warnings(info, total: int) -> list[str]:
+    """Понятные предупреждения о том, как AI обошёлся с метками (без значений данных)."""
+    warnings = []
+    if info.fuzzy:
+        warnings.append(f"AI изменил запись меток ({info.fuzzy} шт.): данные восстановлены по смыслу. Проверьте ответ.")
+    if total and len(info.missing) == total:
+        warnings.append("В ответе нет ни одной метки из вашего текста: AI убрал их или переписал ответ.")
+    elif info.missing:
+        warnings.append("В ответе не найдены метки: " + ", ".join(info.missing) + ". Возможно, AI удалил их или не упомянул.")
+    return warnings
 
 
 @app.get("/api/stats")

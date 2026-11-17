@@ -59,6 +59,46 @@ def mask(text: str) -> MaskResult:
     return result
 
 
+@dataclass
+class RestoreInfo:
+    """Что случилось при восстановлении ответа AI (без самих значений)."""
+
+    exact: int = 0  # меток в точной форме [AD_1]
+    fuzzy: int = 0  # изменённых AI («Ad1», «[ad_1]», «AD-1») восстановлено по смыслу
+    missing: list[str] = field(default_factory=list)  # меток из запроса, которых нет в ответе
+
+
+# Любая похожая на метку запись: в скобках (допускаются пробелы, регистр, «_», «-», пробел) или «голая»
+# (Ad1, AD_1, AD-1). Заменяем только то, что есть в таблице меток этого запроса: слово «abc1» не тронем.
+_LOOSE_LABEL = re.compile(
+    r"\[\s*([A-Za-z]+)\s*[_\- ]?\s*(\d+)\s*\]"
+    r"|(?<![A-Za-z0-9])([A-Za-z]+)[_\-]?(\d+)(?![A-Za-z0-9])"
+)
+
+
+def restore_tolerant(text: str, mapping: dict[str, str]) -> tuple[str, RestoreInfo]:
+    """Как restore(), но понимает метки, которые AI слегка исказил. Возвращает (текст, сведения)."""
+    info = RestoreInfo()
+    seen: set[str] = set()
+
+    def repl(m: re.Match) -> str:
+        cat = (m.group(1) or m.group(3)).upper()
+        num = m.group(2) or m.group(4)
+        label = f"[{cat}_{int(num)}]"
+        if label not in mapping or (num != str(int(num))):  # неизвестная метка или «01»: не трогаем
+            return m.group(0)
+        seen.add(label)
+        if m.group(0) == label:
+            info.exact += 1
+        else:
+            info.fuzzy += 1
+        return mapping[label]
+
+    restored = _LOOSE_LABEL.sub(repl, text)
+    info.missing = [label for label in mapping if label not in seen]
+    return restored, info
+
+
 def restore(text: str, mapping: dict[str, str]) -> str:
     """Вернуть исходные значения вместо меток. Неизвестные метки остаются как есть."""
     return _LABEL.sub(lambda m: mapping.get(m.group(), m.group()), text)
