@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import hmac
+from urllib.parse import unquote
 import logging
 import mimetypes
 import os
@@ -27,7 +28,8 @@ from app import evaluation, ml_detector, redact
 from app.audit import AuditLog
 from app.detector import CLASSIFICATION_NAMES, classify, detect
 from app.incidents import IncidentLog
-from app.llm import LLMError, ai_enabled, ask_llm
+from app.messages import lang_of, tr
+from app.llm import LLMError, ai_enabled, ask_llm, ask_llm_document, vision_enabled
 from app.masker import mask, restore_tolerant
 from app.ratelimit import RateLimiter
 from app.vault import TemporaryVault
@@ -37,10 +39,10 @@ MAX_BODY_BYTES = 64 * 1024  # 5000 символов даже с экраниро
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 # Общий дневной потолок настоящих вызовов AI: публичная ссылка не должна сжечь баланс ключа API.
 DAILY_LLM_LIMIT = int(os.getenv("DAILY_LLM_LIMIT", "300"))
-RATE_LIMITED_PATHS = {"/api/check", "/api/mask", "/api/chat", "/api/redact"}
+RATE_LIMITED_PATHS = {"/api/check", "/api/mask", "/api/chat", "/api/redact", "/api/ask-document"}
 # Загрузка документов: тело запроса — сам файл (не multipart), поэтому он целиком живёт в памяти запроса
 # и не попадает во временные файлы на диске.
-UPLOAD_PATHS = {"/api/redact"}
+UPLOAD_PATHS = {"/api/redact", "/api/ask-document"}
 _redact_slots = BoundedSemaphore(int(os.getenv("REDACT_CONCURRENCY", "2")))  # OCR тяжёлый: не больше N сразу
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -124,6 +126,11 @@ class TextIn(BaseModel):
     department: str | None = None  # отдел, выбранный пользователем (только для статистики; неизвестное = «не выбран»)
 
 
+def _lang(request: Request) -> str:
+    """Язык интерфейса пользователя из заголовка X-Lang (az по умолчанию)."""
+    return lang_of(request.headers.get("x-lang"))
+
+
 def _error(status: int, detail: str, headers: dict | None = None) -> JSONResponse:
     return JSONResponse(status_code=status, content={"detail": detail}, headers=headers)
 
@@ -132,18 +139,19 @@ def _error(status: int, detail: str, headers: dict | None = None) -> JSONRespons
 async def guard(request: Request, call_next):
     """Защита на входе: размер тела, частота запросов, безопасные ответы об ошибках."""
     path = request.url.path
+    lang = _lang(request)
     if request.method == "POST" and path in RATE_LIMITED_PATHS:
         length = request.headers.get("content-length")
         if path in UPLOAD_PATHS:
             if length and length.isdigit() and int(length) > redact.MAX_UPLOAD_BYTES:
-                return _error(413, "Fayl çox böyükdür: maksimum 10 MB.")
+                return _error(413, tr("file_too_big", lang))
         elif length and length.isdigit() and int(length) > MAX_BODY_BYTES:
-            return _error(413, f"Sorğu çox böyükdür. Mətn {MAX_TEXT_LENGTH} simvoldan çox olmamalıdır.")
+            return _error(413, tr("body_too_big", lang, limit=MAX_TEXT_LENGTH))
         allowed, retry_after = limiter.allow(request.client.host if request.client else "unknown")
         if not allowed:
             return _error(
                 429,
-                f"Çox sorğu göndərilib. {retry_after} san. gözləyin və yenidən cəhd edin.",
+                tr("rate_limited", lang, seconds=retry_after),
                 {"Retry-After": str(retry_after)},
             )
     try:
@@ -151,7 +159,7 @@ async def guard(request: Request, call_next):
     except Exception as exc:  # noqa: BLE001
         # Логируем только тип ошибки: ни сообщение, ни трассировка не должны нести текст запроса.
         _log.error("unhandled error: %s", type(exc).__name__)
-        return _error(500, "Serverdə daxili xəta baş verdi. Yenidən cəhd edin.")
+        return _error(500, tr("internal_error", lang))
     if path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
     elif path.startswith("/static/") or path in ("/", "/admin", "/haqqinda", "/sened"):
@@ -164,12 +172,12 @@ async def guard(request: Request, call_next):
 async def validation_handler(request: Request, exc: RequestValidationError):
     # Стандартный ответ FastAPI повторяет введённый текст — здесь этого нет намеренно.
     types = {e.get("type") for e in exc.errors()}
+    lang = _lang(request)
     if "string_too_long" in types:
-        return _error(413, f"Mətn çox uzundur: maksimum {MAX_TEXT_LENGTH} simvol. "
-                           "Qısaldın və ya hissələrlə göndərin.")
+        return _error(413, tr("text_too_long", lang, limit=MAX_TEXT_LENGTH))
     if "string_too_short" in types:
-        return _error(422, "Mətn daxil edin: sahə boş ola bilməz.")
-    return _error(422, 'Yanlış sorğu: {"text": "..."} formatında JSON gözlənilir.')
+        return _error(422, tr("text_empty", lang))
+    return _error(422, tr("bad_request", lang))
 
 
 @app.get("/")
@@ -187,20 +195,18 @@ def document_page():
     return FileResponse(STATIC_DIR / "sened.html")
 
 
-def _blocked_message(category: str) -> str:
-    """Сообщение пользователю на азербайджанском. Без текста документа."""
-    name = CLASSIFICATION_NAMES[category]
-    return (f"«{name}» qrifi aşkarlandı. Sorğu tam bloklandı: mətn maskalanmadı və AI-yə göndərilmədi. "
-            "İnzibatçıya bildiriş göndərildi.")
+def _blocked_message(category: str, lang: str = "az") -> str:
+    """Сообщение пользователю на его языке. Без текста документа."""
+    return tr("blocked", lang, name=CLASSIFICATION_NAMES[category])
 
 
 @app.post("/api/check")
-def check(body: TextIn):
+def check(body: TextIn, request: Request):
     category = classify(body.text)
     if category:
         # Текст с грифом дальше не обрабатываем: ни правила, ни модель его не видят.
         return {"blocked": True, "category": CLASSIFICATION_NAMES[category],
-                "message": _blocked_message(category), "findings": []}
+                "message": _blocked_message(category, _lang(request)), "findings": []}
     return {
         "blocked": False,
         "findings": [
@@ -236,14 +242,15 @@ def _register_block(category: str, channel: str, request: Request, department: s
     _audit_blocked(name, channel, dept)
     return JSONResponse(
         status_code=403,
-        content={"detail": _blocked_message(category), "blocked": True, "category": name},
+        content={"detail": _blocked_message(category, _lang(request)), "blocked": True, "category": name},
     )
 
 
 @app.get("/api/config")
 def config():
     """Что доступно на этом сервере. Страница прячет режим «Встроенный AI», если ключа нет."""
-    return {"ai_available": ai_enabled(), "model": ml_detector.status(), "redact_available": redact.available()}
+    return {"ai_available": ai_enabled(), "model": ml_detector.status(), "redact_available": redact.available(),
+            "vision_available": ai_enabled() and vision_enabled()}
 
 
 def _count_protected(masked, department: str | None) -> None:
@@ -291,10 +298,10 @@ def chat(body: TextIn, request: Request):
     if not ai_enabled():
         raise HTTPException(
             status_code=503,
-            detail="Daxili AI quraşdırılmayıb (API açarı yoxdur). Mətni kopyalayıb istənilən AI-yə yapışdırın.",
+            detail=tr("ai_off_paste", _lang(request)),
         )
     if not _reserve_llm_call():
-        raise HTTPException(status_code=429, detail="Gündəlik demo limiti bitib. Sabah yenidən cəhd edin.")
+        raise HTTPException(status_code=429, detail=tr("daily_limit", _lang(request)))
 
     masked = mask(body.text)
     # Таблица меток живёт только внутри этого блока и стирается при любом выходе из него (успех, ошибка AI).
@@ -303,12 +310,13 @@ def chat(body: TextIn, request: Request):
         try:
             raw_answer = ask_llm(masked.masked_text)
         except LLMError as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
+            raise HTTPException(status_code=502, detail=exc.localized(_lang(request))) from exc
         _count_protected(masked, body.department)
         answer, info = restore_tolerant(raw_answer, masked.mapping)
         warnings = _restore_warnings(info, len(masked.mapping))
     return {
         "masked_text": masked.masked_text,
+        "raw_answer": raw_answer,  # ответ AI как он пришёл, с метками: так страница показывает «до раскрытия»
         "answer": answer,
         "found": dict(masked.counts),
         "warnings": warnings,
@@ -321,39 +329,43 @@ async def _read_upload(request: Request) -> bytes:
     async for chunk in request.stream():
         size += len(chunk)
         if size > redact.MAX_UPLOAD_BYTES:
-            raise HTTPException(status_code=413, detail="Fayl çox böyükdür: maksimum 10 MB.")
+            raise HTTPException(status_code=413, detail=tr("file_too_big", _lang(request)))
         chunks.append(chunk)
     return b"".join(chunks)
 
 
-@app.post("/api/redact")
-async def redact_document(request: Request):
-    """Автоматическая закраска PDF или изображения (тело запроса = файл; отдел в заголовке X-Department).
-
-    Назад: закрашенный файл (base64), превью «до/после» с координатами зон, счётчики и замаскированный текст
-    документа для AI. Исходный файл и найденные значения нигде не сохраняются.
-    """
+async def _redact_upload(request: Request):
+    """Прочитать файл из тела запроса и закрасить. Возвращает (результат, отдел); ошибки — HTTPException."""
     if not redact.available():
-        raise HTTPException(status_code=503, detail="Sənəd qoruması quraşdırılmayıb (requirements-vision.txt).")
+        raise HTTPException(status_code=503, detail=tr("redact_unavailable", _lang(request)))
     data = await _read_upload(request)
     department = request.headers.get("x-department")
     if not _redact_slots.acquire(blocking=False):
-        raise HTTPException(status_code=429, detail="Sistem məşğuldur: sənəd emal olunur. Bir az gözləyib yenidən cəhd edin.")
+        raise HTTPException(status_code=429, detail=tr("busy", _lang(request)))
     try:
         result = await run_in_threadpool(redact.redact_file, data)
     except redact.RedactError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=exc.localized(_lang(request))) from exc
     except Exception as exc:  # noqa: BLE001
         _log.error("redact failed: %s", type(exc).__name__)  # только тип ошибки, без содержимого документа
-        raise HTTPException(status_code=500, detail="Sənəd emal olunmadı. Başqa fayl yoxlayın.") from exc
+        raise HTTPException(status_code=500, detail=tr("redact_failed", _lang(request))) from exc
     finally:
         _redact_slots.release()
         del data
+    return result, department
 
-    if result.blocked:
-        return _register_block(result.blocked, "redact", request, department)
 
+def _finish_redaction(result, request: Request, department: str | None) -> tuple[dict, dict]:
+    """Учёт закрашенного документа (аудит, счётчики) и ответ клиенту.
+
+    Возвращает (ответ, занятые номера меток по категориям): номера нужны, чтобы метки вопроса к AI не совпали
+    с метками документа.
+    """
     masked = result.masked
+    offsets: dict[str, int] = {}
+    for label in masked.mapping:  # "[AD_3]" -> AD: 3
+        cat, _, num = label[1:-1].rpartition("_")
+        offsets[cat] = max(offsets.get(cat, 0), int(num))
     with TemporaryVault(masked.mapping):
         _audit_detected(masked, "redact", request, department)
     _count_protected(masked, department)
@@ -361,7 +373,7 @@ async def redact_document(request: Request):
         _totals["redacted_files"] += 1
         _totals["faces"] += result.counts.get("UZ", 0)
         _totals["signatures"] += result.counts.get("IMZA", 0)
-    return {
+    payload = {
         "blocked": False,
         "kind": result.kind,
         "page_count": result.page_count,
@@ -372,6 +384,67 @@ async def redact_document(request: Request):
         "file": {"mime": result.mime, "name": "siftguard-qaralanmis." + ("pdf" if result.kind == "pdf" else "png"),
                  "data": base64.b64encode(result.data).decode("ascii")},
     }
+    return payload, offsets
+
+
+@app.post("/api/redact")
+async def redact_document(request: Request):
+    """Автоматическая закраска PDF или изображения (тело запроса = файл; отдел в заголовке X-Department).
+
+    Назад: закрашенный файл (base64), превью «до/после» с координатами зон, счётчики и замаскированный текст
+    документа для AI. Исходный файл и найденные значения нигде не сохраняются.
+    """
+    result, department = await _redact_upload(request)
+    if result.blocked:
+        return _register_block(result.blocked, "redact", request, department)
+    payload, _offsets = _finish_redaction(result, request, department)
+    return payload
+
+
+MAX_QUESTION = 400
+DEFAULT_QUESTION = "Bu sənəd haqqında qısa izah ver və vacib məqamları qeyd et."
+
+
+@app.post("/api/ask-document")
+async def ask_document(request: Request):
+    """Скинуть документ AI: закрасить, а затем задать вопрос (тело запроса = файл; вопрос в заголовке X-Question,
+    закодирован через encodeURIComponent; отдел в X-Department).
+
+    В AI уходит только закрашенное изображение (если подключённая модель умеет читать картинки) и текст документа с
+    метками, либо один этот текст (PDF или модель без зрения). Вопрос тоже проходит маскирование.
+    Ответ приходит вместе с обычным результатом закраски; метки документа в ответе остаются метками.
+    """
+    if not ai_enabled():
+        raise HTTPException(status_code=503, detail=tr("ai_off_doc", _lang(request)))
+    question = unquote(request.headers.get("x-question", "")).strip()[:MAX_QUESTION] or DEFAULT_QUESTION
+    result, department = await _redact_upload(request)
+    if result.blocked:
+        return _register_block(result.blocked, "redact", request, department)
+    payload, offsets = _finish_redaction(result, request, department)
+
+    payload["ai_mode"] = None
+    payload["answer"] = ""
+    payload["ai_error"] = ""
+    if not _reserve_llm_call():
+        payload["ai_error"] = tr("daily_limit", _lang(request))
+        return payload
+
+    q = mask(question, start_after=offsets)  # вопрос тоже может содержать данные: маскируем с продолжением нумерации
+    use_image = result.kind == "image" and vision_enabled()
+    try:
+        jpeg = await run_in_threadpool(redact.to_jpeg, result.data) if use_image else None
+        with TemporaryVault(q.mapping):
+            _audit_detected(q, "redact", request, department)
+            raw = await run_in_threadpool(ask_llm_document, q.masked_text, result.masked.masked_text, jpeg)
+            answer, _info = restore_tolerant(raw, q.mapping)
+        payload["answer"] = answer
+        payload["ai_mode"] = "image" if use_image else "text"
+    except LLMError as exc:
+        payload["ai_error"] = exc.localized(_lang(request))
+    except Exception as exc:  # noqa: BLE001
+        _log.error("ask-document failed: %s", type(exc).__name__)
+        payload["ai_error"] = tr("doc_ai_failed", _lang(request))
+    return payload
 
 
 def _restore_warnings(info, total: int) -> list[str]:
@@ -409,11 +482,11 @@ def require_admin(request: Request) -> None:
     if token:
         given = request.headers.get("x-admin-token", "")
         if not hmac.compare_digest(given.encode("utf-8"), token.encode("utf-8")):
-            raise HTTPException(status_code=401, detail="İnzibatçı tokeni lazımdır.")
+            raise HTTPException(status_code=401, detail=tr("admin_token", _lang(request)))
     elif (request.client.host if request.client else "") not in _LOCAL_HOSTS:
         raise HTTPException(
             status_code=403,
-            detail="İdarəetmə paneli yalnız bu kompüterdən açılır. Uzaqdan giriş üçün ADMIN_TOKEN təyin edin.",
+            detail=tr("admin_local", _lang(request)),
         )
 
 
@@ -492,7 +565,7 @@ def admin_eval(request: Request):
     настоящие Precision, Recall и задержку. Только числа; на обычные счётчики и журнал не влияет."""
     require_admin(request)
     if not _eval_lock.acquire(blocking=False):
-        return _error(409, "Test artıq işləyir. Bir az gözləyin.")
+        return _error(409, tr("eval_running", _lang(request)))
     try:
         return evaluation.evaluate_all()
     finally:

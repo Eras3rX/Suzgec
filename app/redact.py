@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 
 from app.detector import classify
 from app.masker import MaskResult, mask
+from app.messages import KeyedError
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_PAGES = 10
@@ -39,8 +40,8 @@ VISUAL_CATEGORIES = {"UZ": "Üz", "IMZA": "İmza"}
 _SIGNATURE_WORDS = ("imza", "signature", "подпись", "podpis")
 
 
-class RedactError(Exception):
-    """Понятная пользователю ошибка (по-азербайджански). Текст документа в сообщения не попадает."""
+class RedactError(KeyedError):
+    """Понятная пользователю ошибка: сообщение по ключу, на языке пользователя. Текст документа в сообщения не попадает."""
 
 
 def available() -> bool:
@@ -354,15 +355,15 @@ def _open_image(data: bytes):
     try:
         img = Image.open(io.BytesIO(data))
         if img.format not in ("PNG", "JPEG", "WEBP", "BMP"):
-            raise RedactError("Dəstəklənməyən şəkil formatı. PNG, JPG, WEBP və ya PDF yükləyin.")
+            raise RedactError("img_unsupported")
         if img.width * img.height > MAX_PIXELS:
-            raise RedactError("Şəkil çox böyükdür (25 meqapiksel limiti). Ölçüsünü kiçildin.")
+            raise RedactError("img_too_big_px")
         img.load()
         return ImageOps.exif_transpose(img).convert("RGB")  # EXIF-i yeni şəkilə köçürmürük
     except RedactError:
         raise
     except Exception as exc:  # noqa: BLE001
-        raise RedactError("Fayl oxunmadı: şəkil zədəlidir və ya dəstəklənmir.") from exc
+        raise RedactError("img_unreadable") from exc
 
 
 def _classify_ocr(text: str) -> str | None:
@@ -569,14 +570,14 @@ def redact_pdf(data: bytes) -> RedactResult:
     try:
         doc = pymupdf.open(stream=data, filetype="pdf")
     except Exception as exc:  # noqa: BLE001
-        raise RedactError("Fayl oxunmadı: PDF zədəlidir və ya dəstəklənmir.") from exc
+        raise RedactError("pdf_unreadable") from exc
     try:
         if doc.needs_pass:
-            raise RedactError("PDF parolla qorunur. Parolsuz variantı yükləyin.")
+            raise RedactError("pdf_password")
         if doc.page_count == 0:
-            raise RedactError("PDF boşdur.")
+            raise RedactError("pdf_empty")
         if doc.page_count > MAX_PAGES:
-            raise RedactError(f"PDF çox səhifəlidir: maksimum {MAX_PAGES} səhifə.")
+            raise RedactError("pdf_pages", limit=MAX_PAGES)
 
         kinds, pages_items, images = [], [], []
         for page in doc:
@@ -655,9 +656,24 @@ def redact_pdf(data: bytes) -> RedactResult:
 def redact_file(data: bytes) -> RedactResult:
     """Определяем тип по содержимому (а не по имени и заголовку запроса) и закрашиваем."""
     if not data:
-        raise RedactError("Fayl boşdur.")
+        raise RedactError("file_empty")
     if len(data) > MAX_UPLOAD_BYTES:
-        raise RedactError("Fayl çox böyükdür: maksimum 10 MB.")
+        raise RedactError("file_too_big")
     if data[:5] == b"%PDF-":
         return redact_pdf(data)
     return redact_image(data)
+
+
+def to_jpeg(png_bytes: bytes, max_side: int = 1600) -> bytes:
+    """Закрашенную картинку для AI: JPEG не крупнее max_side и до 3 МБ (лимиты сервисов на размер картинки)."""
+    from PIL import Image
+    img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+    if max(img.size) > max_side:
+        ratio = max_side / max(img.size)
+        img = img.resize((max(1, round(img.width * ratio)), max(1, round(img.height * ratio))), Image.LANCZOS)
+    for quality in (85, 70, 55):
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=quality)
+        if buf.tell() <= 3 * 1024 * 1024:
+            break
+    return buf.getvalue()

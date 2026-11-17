@@ -121,6 +121,17 @@
         "Cavabda sizin mətninizdə olmayan etiketlər var: " + unknown.join(", ") + ". Onlar dəyişdirilmədən saxlanılıb."
       );
     }
+    // То же самое в виде данных: страница сама подбирает текст на выбранном языке (warnings остаются на азербайджанском).
+    var warningItems = [];
+    if (fixed.length) warningItems.push({ key: "fixed", items: fixed.map(function (a) { return { text: a.text, guess: a.guess }; }) });
+    if (broken.length) warningItems.push({ key: "broken", items: broken.map(function (a) { return a.text; }) });
+    if (unknown.length) warningItems.push({ key: "unknown", items: unknown.slice() });
+    if (Object.keys(mapping).length > 0 && missing.length === Object.keys(mapping).length && !altered.length) {
+      warningItems.push({ key: "none", items: [] });
+    } else if (missing.length) {
+      warningItems.push({ key: "missing", items: missing.slice() });
+    }
+
     var total = Object.keys(mapping).length;
     if (total > 0 && missing.length === total && !altered.length) {
       warnings.push("Cavabda mətninizdəki etiketlərin heç biri yoxdur: AI onları silib və ya cavabı yenidən yazıb.");
@@ -142,6 +153,7 @@
       unknown: unknown,
       altered: altered,
       warnings: warnings,
+      warningItems: warningItems,
     };
   }
 

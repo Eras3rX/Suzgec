@@ -18,7 +18,7 @@
 <header class="site-header">
   <div class="bar">
     <a class="brand" href="/">
-      <img class="brand-mark" src="/static/brand/mark-64.png" width="40" height="40" alt="">
+      <img class="brand-mark" src="/static/brand/siftguard-logo-light.png" width="56" height="56" alt="">
       <span><span class="brand-name"><span class="sift">Sift</span>Guard</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
     </a>
     <nav class="site-nav" aria-label="Əsas naviqasiya">
@@ -29,6 +29,7 @@
         <li><a href="/haqqinda">Haqqında</a></li>
       </ul>
     </nav>
+    <div class="lang" id="lang-switch" role="group" aria-label="Dil seçimi"></div>
   </div>
 </header>
 <div class="statusbar">
@@ -42,9 +43,12 @@
 <main id="main" class="wrap">
   <noscript><div class="notice notice-warn"><p>Bu səhifə JavaScript tələb edir.</p></div></noscript>
 
-  <section class="intro">
+  <section class="intro hero">
+    <div class="hero-text">
     <h1>Şəxsi məlumatları qoruyaraq süni intellektdən istifadə edin</h1>
     <p>SiftGuard mətndəki şəxsi məlumatları (FİN, IBAN, bank kartı, telefon, ad, ünvan və s.) süni intellektə göndərilməzdən əvvəl etiketlərlə əvəz edir, cavab gələndən sonra isə onları yerinə qaytarır.</p>
+    </div>
+    <img class="hero-logo" src="/static/brand/siftguard-logo.png" width="168" height="168" alt="SiftGuard">
   </section>
 
   <ol class="steps">
@@ -109,6 +113,11 @@
           <button type="button" class="btn btn-secondary" id="send" disabled>Daxili AI-yə göndər</button>
         </div>
         <div id="err-send" class="notice notice-block" role="alert" hidden></div>
+        <div id="ai-wait" class="wait" hidden role="status" aria-live="polite">
+          <div class="wait-bar" aria-hidden="true"><span></span></div>
+          <p><strong>Qorunmuş mətn AI-yə göndərildi.</strong> AI yalnız etiketləri görür və cavab yazır… <span id="wait-time" class="muted"></span></p>
+          <div id="wait-chips" class="wait-chips" aria-hidden="true"></div>
+        </div>
         <p class="small muted" id="send-hint" style="margin-top:10px">Daxili AI üçün serverdə API açarı lazımdır (.env faylında ANTHROPIC_API_KEY və ya pulsuz xidmət üçün LLM_API_KEY). Açar olmadan mətni əl ilə kopyalayın.</p>
       </div>
     </li>
@@ -131,6 +140,7 @@
 
         <h3 style="margin-top:22px">Bərpa olunmuş cavab</h3>
         <div id="restored" class="doc empty" style="margin-top:8px">Cavab burada görünəcək.</div>
+        <p id="reveal-status" class="small muted" role="status" aria-live="polite" hidden style="margin:8px 0 0"></p>
         <div class="actions"><button type="button" class="btn btn-secondary" id="copy-restored" disabled>Cavabı kopyala</button></div>
         <p class="privacy-note">Etiket cədvəli yalnız bu səhifənin yaddaşında saxlanılır: nə serverdə, nə də brauzerdə yazılmır. Səhifəni bağladıqda və ya yenilədikdə silinir.</p>
       </div>
@@ -158,6 +168,8 @@
   </div>
 </footer>
 
+<script src="/static/i18n-dict.js"></script>
+<script src="/static/i18n.js"></script>
 <script src="/static/restore.js"></script>
 <script>
 (function () {
@@ -179,6 +191,8 @@
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const $ = (id) => document.getElementById(id);
+  const t = SG.t;                                   // фраза на выбранном языке (ключ: азербайджанский текст)
+  const catName = (c) => t(LABELS[c] || c);          // название категории данных
 
   // Единственное место, где живёт таблица меток: переменная в памяти этой вкладки.
   // Не localStorage, не куки, не сервер. Исчезает при закрытии или обновлении вкладки.
@@ -186,6 +200,8 @@
   let lastMasked = "";
   let lastRestored = "";
   let timers = [];
+  let lastData = null;       // последний ответ /api/mask (позиции и счётчики, без значений)
+  let lastWarnings = [];     // предупреждения о метках в виде данных (для перевода при смене языка)
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -193,7 +209,13 @@
     if (text !== undefined) node.textContent = text;
     return node;
   }
-  function showMsg(id, msg) { $(id).textContent = msg; $(id).hidden = !msg; }
+  // Сообщение под полем: ключ из словаря (или готовый текст от сервера); меняет язык вместе со страницей.
+  function showMsg(id, key, params) {
+    const node = $(id);
+    if (!key) { SG.clearDynamic(node); node.textContent = ""; node.hidden = true; return; }
+    SG.setText(node, key, params);
+    node.hidden = false;
+  }
   function clearTimers() { timers.forEach(clearTimeout); timers = []; }
 
   function setSteps() {
@@ -206,21 +228,20 @@
   // Сообщение о блокировке по грифу (текст приходит от сервера на азербайджанском, без текста документа).
   function blockedBox(message) {
     const box = el("div", "notice notice-block");
-    box.append(el("p", "notice-title", "Sorğu bloklandı"), el("p", "", message || "Mətn qrif səbəbindən bloklandı."));
+    box.append(el("p", "notice-title", t("Sorğu bloklandı")), el("p", "", message || t("Mətn qrif səbəbindən bloklandı.")));
     return box;
   }
 
   async function postJson(url, text) {
     // Şöbə sorğu ilə yalnız statistika üçün göndərilir (idarəetmə panelində şöbələr üzrə saylar).
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, department: $("dept").value || null }) });
+    const r = await fetch(url, { method: "POST", headers: SG.headers({ "Content-Type": "application/json" }), body: JSON.stringify({ text, department: $("dept").value || null }) });
     let data = {};
     try { data = await r.json(); } catch (e) { /* boş cavab */ }
     return { ok: r.ok, status: r.status, data };
   }
 
   // ---------- Kopyalama (http üzərindən yerli şəbəkədə navigator.clipboard olmur: ehtiyat üsul var) ----------
-  async function copyText(text, button) {
-    const original = button.textContent;
+  async function copyText(text, button, key) {
     let ok = false;
     try {
       if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; }
@@ -233,8 +254,8 @@
       try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
       ta.remove();
     }
-    button.textContent = ok ? "Kopyalandı" : "Alınmadı: mətni əl ilə seçib kopyalayın";
-    setTimeout(() => { button.textContent = original; }, 2200);
+    SG.setText(button, ok ? "Kopyalandı" : "Alınmadı: mətni əl ilə seçib kopyalayın");
+    setTimeout(() => { SG.setText(button, key); }, 2200);
   }
 
   // ---------- Əsas an: mətn «qorunur», məlumatlar rəngli etiketlərə çevrilir ----------
@@ -282,20 +303,28 @@
     timers.push(setTimeout(() => { sieve.remove(); stage.removeAttribute("aria-busy"); }, duration + 250));
   }
 
+  // Строка «N данных защищено (категории)»: пересобирается и при смене языка.
+  function renderSummary() {
+    if (!lastData) return;
+    const total = lastData.spans.length;
+    const parts = Object.entries(lastData.found || {}).map(([cat, n]) => catName(cat) + ": " + n);
+    const summary = $("summary");
+    SG.clearDynamic(summary);
+    summary.replaceChildren();
+    if (total) {
+      summary.append(el("span", "ok", t("{n} məlumat qorundu", { n: total })), document.createTextNode(" (" + parts.join(", ") + ")"));
+    } else {
+      summary.textContent = t("Mətndə qorunmalı məlumat tapılmadı: mətn dəyişdirilməyib.");
+    }
+  }
+
   function showResult(text, data) {
     $("blocked").hidden = true;
     $("stage-wrap").hidden = false;
     $("result").hidden = false;
 
-    const total = data.spans.length;
-    const parts = Object.entries(data.found || {}).map(([cat, n]) => (LABELS[cat] || cat) + ": " + n);
-    const summary = $("summary");
-    summary.replaceChildren();
-    if (total) {
-      summary.append(el("span", "ok", total + " məlumat qorundu"), document.createTextNode(" (" + parts.join(", ") + ")"));
-    } else {
-      summary.textContent = "Mətndə qorunmalı məlumat tapılmadı: mətn dəyişdirilməyib.";
-    }
+    lastData = data;
+    renderSummary();
 
     const seen = new Set();
     const rows = [];
@@ -305,7 +334,7 @@
       const tr = el("tr");
       const chip = el("span", "chip", s.label); chip.dataset.cat = s.category;
       const first = el("td"); first.append(chip);
-      tr.append(first, el("td", "", LABELS[s.category] || s.category), el("td", "", SOURCES[s.source] || s.source));
+      tr.append(first, el("td", "", catName(s.category)), el("td", "", t(SOURCES[s.source] || s.source)));
       rows.push(tr);
     });
     $("found-rows").replaceChildren(...rows);
@@ -327,7 +356,8 @@
     showMsg("err-restore", ""); showMsg("err-send", "");
     $("warnings").hidden = true;
     $("restored").className = "doc empty";
-    $("restored").textContent = "Cavab burada görünəcək.";
+    SG.setText($("restored"), "Cavab burada görünəcək.");
+    $("reveal-status").hidden = true;
     $("copy-restored").disabled = true;
   }
 
@@ -359,11 +389,23 @@
   }
 
   // ---------- 3-cü addım: cavabın bərpası ----------
+  function warningText(w) {
+    if (w.key === "fixed") {
+      return t("AI etiketlərin yazılışını dəyişib: {list}. Məlumatlar mənaya görə bərpa olundu, cavabı yoxlayın.",
+        { list: w.items.map((a) => t("«{text}» ({guess} kimi tanındı)", a)).join(", ") });
+    }
+    if (w.key === "broken") return t("AI etiketləri dəyişib: {list}. Onların yerinə məlumat yazılmayıb.", { list: w.items.map((x) => "«" + x + "»").join(", ") });
+    if (w.key === "unknown") return t("Cavabda sizin mətninizdə olmayan etiketlər var: {list}. Onlar dəyişdirilmədən saxlanılıb.", { list: w.items.join(", ") });
+    if (w.key === "none") return t("Cavabda mətninizdəki etiketlərin heç biri yoxdur: AI onları silib və ya cavabı yenidən yazıb.");
+    return t("Cavabda bu etiketlər tapılmadı: {list}. AI onları silmiş və ya xatırlamamış ola bilər. Cavabı yoxlayın.", { list: w.items.join(", ") });
+  }
+
   function showWarnings(list) {
-    if (!list.length) { $("warnings").hidden = true; return; }
+    lastWarnings = list || [];
+    if (!lastWarnings.length) { $("warnings").hidden = true; return; }
     const ul = el("ul");
-    list.forEach((w) => ul.append(el("li", "", w)));
-    $("warnings").replaceChildren(el("p", "notice-title", "Cavabı yoxlayın"), ul);
+    lastWarnings.forEach((w) => ul.append(el("li", "", warningText(w))));
+    $("warnings").replaceChildren(el("p", "notice-title", t("Cavabı yoxlayın")), ul);
     $("warnings").hidden = false;
   }
 
@@ -375,38 +417,104 @@
     if (!answer.trim()) { showMsg("err-restore", "AI cavabını yuxarıdakı sahəyə yapışdırın."); return; }
 
     const res = SiftGuard.restoreAnswer(answer, session.mapping);
-    const nodes = res.parts.map((p) => {
+    renderRestored(res.parts);
+    lastRestored = res.text;
+    $("copy-restored").disabled = false;
+    showWarnings(res.warningItems);
+  }
+
+  // ---------- Etiketlərin açılması: cavabda əvvəl etiketlər, sonra «süzgəc» keçdikcə həqiqi dəyərlər ----------
+  const REVEAL_MS = 7500;  // etiketlərin açılması 7-8 saniyə çəkir: izləmək üçün vaxt qalır
+
+  function runSweep(box, items, apply, onDone) {
+    box.setAttribute("aria-busy", "true");
+    const height = box.scrollHeight;
+    const width = Math.max(box.clientWidth, 1);
+    const sieve = el("div", "sieve");
+    box.prepend(sieve);
+    const duration = REVEAL_MS;
+    // «Süzgəc» yalnız axırıncı etiketə qədər gedir, hamısı bütün 7-8 saniyəyə bərabər paylanır.
+    const lineH = Math.max(18, parseFloat(getComputedStyle(box).lineHeight) || 26);
+    const last = Math.max(...items.map((it) => it.node.offsetTop));
+    const span = last + lineH;                   // yol: birinci sətirdən axırıncı etiketin sətrinin sonuna qədər
+    const active = duration * 0.94;
+    requestAnimationFrame(() => {
+      sieve.style.transition = "transform " + active + "ms linear";
+      sieve.style.transform = "translateY(" + Math.max(0, Math.min(height - 20, span - 10)) + "px)";
+    });
+    // Eyni sətirdəki etiketlər birdən yox, soldan sağa ardıcıl açılır.
+    let opened = 0;
+    items.forEach((it) => {
+      const f = (it.node.offsetTop + (it.node.offsetLeft / width) * lineH) / span;
+      timers.push(setTimeout(() => { apply(it); opened++; if (onDone) onDone(opened, items.length); }, Math.max(0, Math.min(1, f) * active)));
+    });
+    timers.push(setTimeout(() => { sieve.remove(); box.removeAttribute("aria-busy"); }, duration));
+  }
+
+  function renderRestored(parts) {
+    clearTimers();
+    const box = $("restored");
+    SG.clearDynamic(box);   // место ответа больше не «заглушка», его текст не должен переводиться как фраза
+    const live = !reduceMotion;               // hərəkət yoxdursa nəticə dərhal göstərilir
+    const items = [];
+    const nodes = parts.map((p) => {
       if (p.type === "value") {
-        const v = el("span", "val", p.text); v.dataset.cat = p.category;
-        v.title = p.label + " yerinə bərpa olundu" + (p.fuzzy ? " (AI etiketi dəyişmişdi)" : "");
+        const v = el("span", live ? "chip" : "val", live ? p.label : p.text); v.dataset.cat = p.category;
+        v.title = t(p.fuzzy ? "{label} yerinə bərpa olundu (AI etiketi dəyişmişdi)" : "{label} yerinə bərpa olundu", { label: p.label });
+        items.push({ node: v, kind: "value", text: p.text });
         return v;
       }
       if (p.type === "altered" || p.type === "unknown") {
-        const v = el("span", "val-warn", p.text);
-        v.title = p.type === "altered" ? "Etiket dəyişdirilib" : "Bu etiket sizin mətnində yoxdur";
+        const v = el("span", live ? "" : "val-warn", p.text);
+        v.title = t(p.type === "altered" ? "Etiket dəyişdirilib" : "Bu etiket sizin mətnində yoxdur");
+        items.push({ node: v, kind: "warn" });
         return v;
       }
       return p.text;
     });
-    $("restored").className = "doc";
-    $("restored").replaceChildren(...nodes);
-    lastRestored = res.text;
-    $("copy-restored").disabled = false;
-    showWarnings(res.warnings);
+    box.className = "doc";
+    box.replaceChildren(...nodes);
+    const values = items.filter((it) => it.kind === "value").length;
+    const status = $("reveal-status");
+    status.hidden = !values;
+    if (values) SG.setText(status, live ? "Etiketlər açılır: {done} / {total}" : "{n} məlumat bərpa olundu.", { done: 0, total: values, n: values });
+    else { SG.clearDynamic(status); status.textContent = ""; }
+    if (!live || !items.length) return;
+    let done = 0;
+    runSweep(box, items, (it) => {
+      if (it.kind === "value") { it.node.className = "val unlock"; it.node.textContent = it.text; done++; }
+      else it.node.className = "val-warn unlock";
+      SG.setText(status, done < values ? "Etiketlər açılır: {done} / {total}" : "{n} məlumat bərpa olundu.", { done, total: values, n: values });
+    });
   }
+
+  // ---------- AI cavabı gözlənilərkən göstərici ----------
+  let waitTimer = null;
+  function startWait() {
+    const labels = Object.keys(session.mapping);
+    $("wait-chips").replaceChildren(...labels.map((l, i) => {
+      const c = el("span", "chip", l); c.dataset.cat = l.slice(1, l.indexOf("_")); c.style.setProperty("--i", String(i));
+      return c;
+    }));
+    const t0 = Date.now();
+    $("wait-time").textContent = "";
+    waitTimer = setInterval(() => { $("wait-time").textContent = t("({n} san.)", { n: Math.round((Date.now() - t0) / 1000) }); }, 1000);
+    $("ai-wait").hidden = false;
+  }
+  function stopWait() { clearInterval(waitTimer); $("ai-wait").hidden = true; }
 
   function sampleReply(broken) {
     if (!session) { showMsg("err-restore", "Əvvəlcə 1-ci addımda mətni qoruyun."); return; }
     const labels = Object.keys(session.mapping);
-    const facts = labels.map((l) => (LABELS[l.slice(1, l.indexOf("_"))] || "məlumat") + " " + l);
-    let t = "Salam! Müraciətinizi aldıq. Göstərilən məlumatları yoxladıq: " + facts.join("; ") + ". Cavabımız bir gün ərzində veriləcək.";
+    const facts = labels.map((l) => catName(l.slice(1, l.indexOf("_"))) + " " + l);
+    let reply = t("Salam! Müraciətinizi aldıq. Göstərilən məlumatları yoxladıq: {facts}. Cavabımız bir gün ərzində veriləcək.", { facts: facts.join("; ") });
     if (broken && labels.length) {
       // İki etiketi korlayırıq, üçüncünü itiririk: xəbərdarlıqları göstərmək üçün.
-      t = t.replace(labels[0], labels[0].toLowerCase().replace("_", " "));
-      if (labels[1]) t = t.replace(labels[1], labels[1].slice(1, -1));
-      if (labels[2]) t = t.replace(labels[2], "");
+      reply = reply.replace(labels[0], labels[0].toLowerCase().replace("_", " "));
+      if (labels[1]) reply = reply.replace(labels[1], labels[1].slice(1, -1));
+      if (labels[2]) reply = reply.replace(labels[2], "");
     }
-    $("answer-in").value = t;
+    $("answer-in").value = reply;
     showMsg("err-restore", "");
   }
 
@@ -416,24 +524,30 @@
     showMsg("err-send", "");
     if (!session || session.text !== text) { const s = await doMask(); if (!s) return; }
     $("send").disabled = true;
-    const original = $("send").textContent;
-    $("send").textContent = "AI cavabı gözlənilir…";
+
+    SG.setText($("send"), "AI cavabı gözlənilir…");
+    startWait();
     try {
       const r = await postJson("/api/chat", text);
+      stopWait();
       if (r.status === 403) { showBlocked(r.data.detail); return; }
       if (!r.ok) { showMsg("err-send", r.data.detail || "Server xətası."); return; }
-      $("answer-in").value = "";
-      $("restored").className = "doc";
-      $("restored").textContent = r.data.answer;
-      lastRestored = r.data.answer;
+      // Как в режиме «копировать и вставить»: сначала ответ AI с метками (то, что AI видел и написал), затем раскрытие.
+      // Таблица меток остаётся в браузере: раскрываем на странице, а не на сервере.
+      const raw = typeof r.data.raw_answer === "string" ? r.data.raw_answer : r.data.answer;
+      $("answer-in").value = raw;
+      const res = SiftGuard.restoreAnswer(raw, session.mapping);
+      renderRestored(res.parts);
+      lastRestored = res.text;
       $("copy-restored").disabled = false;
-      showWarnings(r.data.warnings || []);
-      $("restored").scrollIntoView({ block: "nearest" });
+      showWarnings(res.warningItems);
+      $("answer-in").scrollIntoView({ block: "center" });
     } catch (e) {
       showMsg("err-send", "Serverlə əlaqə qurulmadı. Server işləyirmi?");
     } finally {
+      stopWait();
       $("send").disabled = false;
-      $("send").textContent = original;
+      SG.setText($("send"), "Daxili AI-yə göndər");
       loadStats();
     }
   }
@@ -444,23 +558,24 @@
       const s = await (await fetch("/api/stats")).json();
       const cats = s.categories || {};
       const total = Object.values(cats).reduce((a, b) => a + b, 0);
-      $("totals").replaceChildren(...[["Sorğular", s.requests || 0], ["Qorunan məlumat", total], ["Bloklanan", s.blocked || 0]].map(([name, n]) => {
+      $("totals").replaceChildren(...[["Sorğular", s.requests || 0], ["Qorunan məlumat", total], ["Bloklanan", s.blocked || 0]].map(([key, n]) => {
+        const name = t(key);
         const box = el("span"); box.append(el("strong", "", String(n)), document.createTextNode(name)); return box;
       }));
       const rows = Object.keys(LABELS).filter((c) => cats[c]).map((c) => {
         const tr = el("tr");
-        const first = el("td"); const sw = el("span", "swatch"); sw.dataset.cat = c; first.append(sw, document.createTextNode(LABELS[c]));
+        const first = el("td"); const sw = el("span", "swatch"); sw.dataset.cat = c; first.append(sw, document.createTextNode(catName(c)));
         tr.append(first, el("td", "num", String(cats[c])));
         return tr;
       });
-      const empty = el("tr", "empty-row"); const cell = el("td", "", "Hələ heç nə qorunmayıb."); cell.colSpan = 2; empty.append(cell);
+      const empty = el("tr", "empty-row"); const cell = el("td", "", t("Hələ heç nə qorunmayıb.")); cell.colSpan = 2; empty.append(cell);
       $("stats").replaceChildren(...(rows.length ? rows : [empty]));
       const src = s.sources || {};
-      $("sources").textContent = rows.length ? "Tapan: qayda " + (src.rule || 0) + ", AI modeli " + (src.ai || 0) + ", hər ikisi " + (src["rule+ai"] || 0) + "." : "";
+      $("sources").textContent = rows.length ? t("Tapan: qayda {rule}, AI modeli {ai}, hər ikisi {both}.", { rule: src.rule || 0, ai: src.ai || 0, both: src["rule+ai"] || 0 }) : "";
     } catch (e) { /* statistika səhifənin işləməsi üçün vacib deyil */ }
   }
 
-  function updateCounter() { $("counter").textContent = $("text").value.length + " / " + MAX_LEN + " simvol"; }
+  function updateCounter() { SG.setText($("counter"), "{n} / {max} simvol", { n: $("text").value.length, max: MAX_LEN }); }
 
   // ---------- AI modelinin vəziyyəti ----------
   const MODEL = {
@@ -473,14 +588,14 @@
     try {
       const c = await (await fetch("/api/config")).json();
       $("send").disabled = !c.ai_available;
-      $("ai-text").textContent = c.ai_available ? "Daxili AI: qoşulub" : "Daxili AI: API açarı təyin edilməyib";
+      SG.setText($("ai-text"), c.ai_available ? "Daxili AI: qoşulub" : "Daxili AI: API açarı təyin edilməyib");
       $("ai-chip").className = "status" + (c.ai_available ? " status-ready" : "");
-      if (c.ai_available) $("send-hint").textContent = "Daxili AI qoşulub: mətn qorunduqdan sonra birbaşa göndərilir, cavab avtomatik bərpa olunur.";
+      if (c.ai_available) SG.setText($("send-hint"), "Daxili AI qoşulub: mətn qorunduqdan sonra birbaşa göndərilir, cavab avtomatik bərpa olunur.");
       const [text, cls] = MODEL[c.model] || MODEL.off;
-      $("model-text").textContent = text;
+      SG.setText($("model-text"), text);
       $("model-chip").className = "status" + (cls ? " " + cls : "");
       if (c.model === "loading") setTimeout(loadConfig, 3000);
-    } catch (e) { $("model-text").textContent = "AI modelinin vəziyyəti məlum deyil"; }
+    } catch (e) { SG.setText($("model-text"), "AI modelinin vəziyyəti məlum deyil"); }
   }
 
   $("mask").addEventListener("click", doMask);
@@ -492,8 +607,8 @@
   $("restore").addEventListener("click", doRestore);
   $("sample-answer").addEventListener("click", () => sampleReply(false));
   $("sample-broken").addEventListener("click", () => sampleReply(true));
-  $("copy-masked").addEventListener("click", () => copyText(lastMasked, $("copy-masked")));
-  $("copy-restored").addEventListener("click", () => copyText(lastRestored, $("copy-restored")));
+  $("copy-masked").addEventListener("click", () => copyText(lastMasked, $("copy-masked"), "Mətni kopyala"));
+  $("copy-restored").addEventListener("click", () => copyText(lastRestored, $("copy-restored"), "Cavabı kopyala"));
   $("send").addEventListener("click", sendToAi);
   $("example").addEventListener("click", () => { $("text").value = SAMPLE; updateCounter(); $("text").focus(); });
   $("example-secret").addEventListener("click", () => { $("text").value = SAMPLE_SECRET; updateCounter(); $("text").focus(); });
@@ -503,6 +618,20 @@
   setSteps();
   loadStats();
   loadConfig();
+
+  // Смена языка: страница пересобирает то, что строит сама (подписи, таблицы, предупреждения).
+  SG.onLang(() => {
+    renderSummary();
+    showWarnings(lastWarnings);
+    loadStats();
+    loadConfig();
+    if (lastData) {  // таблица найденных данных
+      Array.from($("found-rows").rows).forEach((tr, i) => {
+        const span = lastData.spans.filter((s, k, all) => all.findIndex((x) => x.label === s.label) === k)[i];
+        if (span) { tr.cells[1].textContent = catName(span.category); tr.cells[2].textContent = t(SOURCES[span.source] || span.source); }
+      });
+    }
+  });
 })();
 </script>
 </body>

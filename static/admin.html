@@ -17,7 +17,7 @@
 <header class="site-header">
   <div class="bar">
     <a class="brand" href="/">
-      <img class="brand-mark" src="/static/brand/mark-64.png" width="40" height="40" alt="">
+      <img class="brand-mark" src="/static/brand/siftguard-logo-light.png" width="56" height="56" alt="">
       <span><span class="brand-name"><span class="sift">Sift</span>Guard</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
     </a>
     <nav class="site-nav" aria-label="Əsas naviqasiya">
@@ -28,6 +28,7 @@
         <li><a href="/haqqinda">Haqqında</a></li>
       </ul>
     </nav>
+    <div class="lang" id="lang-switch" role="group" aria-label="Dil seçimi"></div>
   </div>
 </header>
 <div class="statusbar">
@@ -177,6 +178,8 @@
   </div>
 </footer>
 
+<script src="/static/i18n-dict.js"></script>
+<script src="/static/i18n.js"></script>
 <script>
 (function () {
   "use strict";
@@ -186,9 +189,11 @@
   const OTHER = [["ID", "Vəsiqə"], ["VOEN", "VÖEN"], ["EMAIL", "E-poçt"], ["ADRES", "Ünvan"], ["TARIX", "Tarix"]];
   const ALL_CATS = MAIN.concat(OTHER);
   const $ = (id) => document.getElementById(id);
-  const fmt = (n) => Number(n || 0).toLocaleString("az");
+  const t = SG.t;   // фраза на выбранном языке (ключ: азербайджанский текст)
+  const fmt = (n) => Number(n || 0).toLocaleString(SG.locale());
 
   let incidents = [], lastId = 0, ackId = 0, token = "";
+  let lastTest = null;   // последний результат теста (чтобы пересобрать таблицы при смене языка)
   const previous = {};   // əvvəlki göstəricilər: artımı vurğulamaq üçün
 
   function el(tag, className, text) {
@@ -197,8 +202,9 @@
     if (text !== undefined) node.textContent = text;
     return node;
   }
-  const when = (iso) => new Date(iso).toLocaleString("az");
-  const authHeaders = () => (token ? { "X-Admin-Token": token } : {});
+  const when = (iso) => new Date(iso).toLocaleString(SG.locale());
+  const authHeaders = () => SG.headers(token ? { "X-Admin-Token": token } : {});
+  const channelName = (c) => t(CHANNELS[c] || c);
 
   // ---------- Bölmələr ----------
   function selectTab(name) {
@@ -213,20 +219,20 @@
     const box = el("div", "metric" + (isBlock ? " metric-block" : ""));
     box.id = "tile-" + key;
     const num = el("span", "num", "—"); num.id = "num-" + key;
-    box.append(el("span", "name", name), num, el("span", "delta", ""));
+    box.append(el("span", "name", t(name)), num, el("span", "delta", ""));
     return box;
   }
   function swatchItem(cat, name, id) {
     const item = el("span"); if (id) item.id = id;
     const sw = el("span", "swatch"); sw.dataset.cat = cat;
-    item.append(sw, document.createTextNode(name));
+    item.append(sw, document.createTextNode(t(name)));
     return item;
   }
   function buildMetrics() {
     const boxes = MAIN.map(([cat, name]) => metric(cat, name, false));
     boxes.push(metric("BLOCK", "Qrif blokları", true));
     $("tiles").replaceChildren(...boxes);
-    $("others").replaceChildren(...OTHER.map(([cat, name]) => swatchItem(cat, name + ": 0", "other-" + cat)));
+    $("others").replaceChildren(...OTHER.map(([cat, name]) => swatchItem(cat, name, "other-" + cat)));
   }
   function setValue(key, value) {
     const box = $("tile-" + key), num = $("num-" + key);
@@ -244,15 +250,15 @@
     setValue("BLOCK", s.blocked || 0);
     OTHER.forEach(([cat, name]) => {
       const item = $("other-" + cat);
-      item.replaceChildren(item.firstChild, document.createTextNode(name + ": " + fmt((s.categories || {})[cat] || 0)));
+      item.replaceChildren(item.firstChild, document.createTextNode(t(name) + ": " + fmt((s.categories || {})[cat] || 0)));
     });
     const protectedTotal = Object.values(s.categories || {}).reduce((a, b) => a + b, 0);
     const docs = s.documents || {};
     $("totals").replaceChildren(...[["Sorğular", s.requests], ["Qorunan məlumat", protectedTotal], ["Bloklanan sənəd", s.blocked],
       ["Qaralanan fayl", docs.files], ["Qaralanan üz", docs.faces], ["Qaralanan imza", docs.signatures]].map(([name, n]) => {
-      const box = el("span"); box.append(el("strong", "", fmt(n)), document.createTextNode(name)); return box;
+      const box = el("span"); box.append(el("strong", "", fmt(n)), document.createTextNode(t(name))); return box;
     }));
-    $("updated").textContent = new Date().toLocaleTimeString("az");
+    $("updated").textContent = new Date().toLocaleTimeString(SG.locale());
   }
 
   // ---------- 2. Şöbələr ----------
@@ -265,23 +271,23 @@
         const n = (d.categories || {})[cat] || 0;
         if (!n) return;
         const seg = el("span"); seg.dataset.cat = cat; seg.style.flexBasis = (n / max * 100) + "%";
-        seg.title = name + ": " + n; bar.append(seg);
+        seg.title = t(name) + ": " + n; bar.append(seg);
       });
       if (d.blocked) {
-        const seg = el("span", "is-block"); seg.style.flexBasis = (d.blocked / max * 100) + "%"; seg.title = "Qrif blokları: " + d.blocked; bar.append(seg);
+        const seg = el("span", "is-block"); seg.style.flexBasis = (d.blocked / max * 100) + "%"; seg.title = t("Qrif blokları: {n}", { n: d.blocked }); bar.append(seg);
       }
-      row.append(el("div", "", d.name), bar, el("div", "dept-nums", fmt(d.protected) + " məlumat, " + fmt(d.blocked) + " blok"));
+      row.append(el("div", "", t(d.name)), bar, el("div", "dept-nums", t("{p} məlumat, {b} blok", { p: fmt(d.protected), b: fmt(d.blocked) })));
       return row;
     }));
     $("dept-rows").replaceChildren(...depts.map((d) => {
       const tr = el("tr");
-      tr.append(el("td", "", d.name), el("td", "num", fmt(d.requests)), el("td", "num", fmt(d.protected)), el("td", "num", fmt(d.blocked)));
+      tr.append(el("td", "", t(d.name)), el("td", "num", fmt(d.requests)), el("td", "num", fmt(d.protected)), el("td", "num", fmt(d.blocked)));
       return tr;
     }));
   }
   function buildLegend() {
     const items = ALL_CATS.map(([cat, name]) => swatchItem(cat, name));
-    const blk = el("span"); blk.append(el("span", "swatch-red"), document.createTextNode("Qrif blokları"));
+    const blk = el("span"); blk.append(el("span", "swatch-red"), document.createTextNode(t("Qrif blokları")));
     items.push(blk);
     $("dept-legend").replaceChildren(...items);
   }
@@ -291,18 +297,18 @@
     const fresh = incidents.filter((i) => i.id > ackId);
     $("alert").hidden = fresh.length === 0;
     $("tab-count").hidden = fresh.length === 0; $("tab-count").textContent = String(fresh.length);
-    document.title = fresh.length ? "(" + fresh.length + ") Kritik · SiftGuard" : "SiftGuard — idarəetmə paneli";
+    document.title = fresh.length ? "(" + fresh.length + ") " + t("Kritik") + " · SiftGuard" : t("SiftGuard — idarəetmə paneli");
     if (fresh.length) {
       const last = fresh[0];
       $("alert-title").textContent = fresh.length === 1
-        ? "Qrifli sənəd göndərmək cəhdi bloklandı: «" + last.category_name + "»"
-        : "Qrifli sənəd göndərmək cəhdləri bloklandı: " + fresh.length;
-      $("alert-meta").textContent = "Son cəhd: " + when(last.time) + ". Qrif: «" + last.category_name + "». Kanal: " + (CHANNELS[last.channel] || last.channel) + ".";
+        ? t("Qrifli sənəd göndərmək cəhdi bloklandı: «{name}»", { name: last.category_name })
+        : t("Qrifli sənəd göndərmək cəhdləri bloklandı: {n}", { n: fresh.length });
+      $("alert-meta").textContent = t("Son cəhd: {time}. Qrif: «{name}». Kanal: {channel}.", { time: when(last.time), name: last.category_name, channel: channelName(last.channel) });
     }
     $("rows").replaceChildren(...incidents.map((i) => {
       const tr = el("tr", i.id > ackId ? "is-new" : "");
-      const level = el("td"); level.append(el("span", "sev", "Kritik"));
-      tr.append(el("td", "", when(i.time)), level, el("td", "", i.category_name), el("td", "", CHANNELS[i.channel] || i.channel));
+      const level = el("td"); level.append(el("span", "sev", t("Kritik")));
+      tr.append(el("td", "", when(i.time)), level, el("td", "", i.category_name), el("td", "", channelName(i.channel)));
       return tr;
     }));
     $("empty").hidden = incidents.length > 0;
@@ -311,9 +317,9 @@
   // ---------- Sorğu dövrü ----------
   function setLive(ok, text) {
     $("live").className = "status" + (ok ? " status-ready" : "");
-    $("live-text").textContent = text;
+    $("live-text").textContent = t(text);
   }
-  const showError = (msg) => { $("error").textContent = msg; $("error").hidden = !msg; };
+  const showError = (msg) => { $("error").textContent = msg ? t(msg) : ""; $("error").hidden = !msg; };
 
   async function get(path) {
     const r = await fetch(path, { headers: authHeaders(), cache: "no-store" });
@@ -338,7 +344,7 @@
       lastId = inc.data.last_id;
       renderIncidents();
       const parts = Object.entries(inc.data.by_category || {}).map(([k, v]) => "«" + k + "»: " + v);
-      $("by-category").textContent = parts.length ? "Qriflər üzrə: " + parts.join(", ") + "." : "";
+      $("by-category").textContent = parts.length ? t("Qriflər üzrə: {list}.", { list: parts.join(", ") }) : "";
     } catch (e) {
       setLive(false, "Bağlantı yoxdur");
     }
@@ -349,39 +355,40 @@
   const ms = (v) => Number(v).toFixed(2) + " ms";
 
   function renderTest(result) {
+    lastTest = result;
     $("test-rows").replaceChildren(...result.runs.map((run) => {
       const tr = el("tr");
-      tr.append(el("td", "", run.mode_name), el("td", "num", pct(run.totals.precision)), el("td", "num", pct(run.totals.recall)),
+      tr.append(el("td", "", t(run.mode_name)), el("td", "num", pct(run.totals.precision)), el("td", "num", pct(run.totals.recall)),
         el("td", "num", pct(run.totals.f1)), el("td", "num", ms(run.latency_ms.avg)), el("td", "num", ms(run.latency_ms.p95)),
         el("td", "num", ms(run.latency_ms.max)), el("td", "num", run.clean_false_alarms + " / " + run.without_data));
       return tr;
     }));
     const last = result.runs[result.runs.length - 1];
-    $("cat-mode").textContent = "(" + last.mode_name + ")";
+    $("cat-mode").textContent = "(" + t(last.mode_name) + ")";
     $("cat-rows").replaceChildren(...ALL_CATS.map(([cat, name]) => {
       const s = last.categories[cat];
       const tr = el("tr");
-      tr.append(el("td", "", name), el("td", "num", String(s.expected)), el("td", "num", String(s.found)), el("td", "num", String(s.missed)),
+      tr.append(el("td", "", t(name)), el("td", "num", String(s.expected)), el("td", "num", String(s.found)), el("td", "num", String(s.missed)),
         el("td", "num", String(s.false)), el("td", "num", pct(s.recall)), el("td", "num", pct(s.precision)));
       return tr;
     }));
-    let meta = "Cümlə sayı: " + result.phrases + " (" + result.with_data + " məlumatlı, " + result.without_data + " məlumatsız). Hesablandı: " + when(result.generated_at) + ".";
-    if (result.model !== "ready") meta += " AI modeli hazır deyil (" + result.model + "), ona görə yalnız qaydalar sınaqdan keçirilib.";
+    let meta = t("Cümlə sayı: {n} ({a} məlumatlı, {b} məlumatsız). Hesablandı: {time}.", { n: result.phrases, a: result.with_data, b: result.without_data, time: when(result.generated_at) });
+    if (result.model !== "ready") meta += t(" AI modeli hazır deyil ({status}), ona görə yalnız qaydalar sınaqdan keçirilib.", { status: result.model });
     $("test-meta").textContent = meta;
   }
 
   $("run-test").addEventListener("click", async () => {
     const button = $("run-test");
-    button.disabled = true; $("test-status").textContent = "İşləyir… (bir neçə saniyə çəkə bilər)";
+    button.disabled = true; SG.setText($("test-status"), "İşləyir… (bir neçə saniyə çəkə bilər)");
     const started = performance.now();
     try {
       const r = await fetch("/api/admin/eval", { method: "POST", headers: authHeaders(), cache: "no-store" });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) { $("test-status").textContent = data.detail || "Test alınmadı."; return; }
+      if (!r.ok) { SG.setText($("test-status"), data.detail || "Test alınmadı."); return; }
       renderTest(data);
-      $("test-status").textContent = "Tamamlandı (" + ((performance.now() - started) / 1000).toFixed(1) + " san.).";
+      SG.setText($("test-status"), "Tamamlandı ({n} san.).", { n: ((performance.now() - started) / 1000).toFixed(1) });
     } catch (e) {
-      $("test-status").textContent = "Serverlə əlaqə yoxdur.";
+      SG.setText($("test-status"), "Serverlə əlaqə yoxdur.");
     } finally {
       button.disabled = false;
     }
@@ -389,15 +396,15 @@
 
   // ---------- 5. Audit ----------
   const EVENTS = { detected: "Məlumat tapıldı", blocked: "Qrif bloku" };
-  const dept = (d) => (d === "maliyye" ? "Maliyyə" : d === "huquq" ? "Hüquq" : d === "hr" ? "HR" : "Seçilməyib");
+  const dept = (d) => t(d === "maliyye" ? "Maliyyə" : d === "huquq" ? "Hüquq" : d === "hr" ? "HR" : "Seçilməyib");
 
   function auditRow(e, withHash) {
     const tr = el("tr");
     const cells = [el("td", "", String(e.seq)), el("td", "", when(e.ts))];
-    if (withHash) cells.push(el("td", "", EVENTS[e.event] || e.event));
+    if (withHash) cells.push(el("td", "", t(EVENTS[e.event] || e.event)));
     cells.push(el("td", "", e.category));
     if (withHash) cells.push(el("td", "", e.digest || "—"));
-    cells.push(el("td", "", CHANNELS[e.channel] || e.channel), el("td", "", dept(e.dept)));
+    cells.push(el("td", "", channelName(e.channel)), el("td", "", dept(e.dept)));
     tr.append(...cells);
     return tr;
   }
@@ -406,15 +413,15 @@
     const r = await get("/api/admin/audit?limit=50");
     if (r.status !== 200) return;
     const d = r.data;
-    $("audit-chain").textContent = d.chain.ok ? "Bütövdür" : "Pozulub";
+    $("audit-chain").textContent = d.chain.ok ? t("Bütövdür") : t("Pozulub");
     $("audit-total").textContent = fmt(d.chain.events);
     $("audit-active").textContent = fmt(d.vault.active);
     $("audit-wiped").textContent = fmt(d.vault.wiped);
     let note = d.chain.ok
-      ? "Zəncir yoxlandı: " + d.chain.events + " qeyd, dəyişiklik aşkarlanmayıb."
-      : "Diqqət: zəncir " + d.chain.broken_at + "-ci qeyddə pozulub, jurnal dəyişdirilib.";
-    if (!d.healthy) note += " Son yazma uğursuz oldu: jurnal hazırda yazılmır.";
-    note += " Açar mənbəyi: " + (d.key_source === "env" ? "AUDIT_KEY dəyişəni" : "server faylı data/audit/audit.key") + ".";
+      ? t("Zəncir yoxlandı: {n} qeyd, dəyişiklik aşkarlanmayıb.", { n: d.chain.events })
+      : t("Diqqət: zəncir {n}-ci qeyddə pozulub, jurnal dəyişdirilib.", { n: d.chain.broken_at });
+    if (!d.healthy) note += t(" Son yazma uğursuz oldu: jurnal hazırda yazılmır.");
+    note += t(" Açar mənbəyi: {source}.", { source: t(d.key_source === "env" ? "AUDIT_KEY dəyişəni" : "server faylı data/audit/audit.key") });
     $("audit-note").textContent = note;
     $("audit-rows").replaceChildren(...d.events.map((e) => auditRow(e, true)));
     $("audit-empty").hidden = d.events.length > 0;
@@ -422,8 +429,8 @@
 
   async function checkValue() {
     const value = $("audit-value").value.trim();
-    if (!value) { $("audit-result").textContent = "Dəyər daxil edin."; return; }
-    $("audit-result").textContent = "Yoxlanılır…";
+    if (!value) { SG.setText($("audit-result"), "Dəyər daxil edin."); return; }
+    SG.setText($("audit-result"), "Yoxlanılır…");
     try {
       const r = await fetch("/api/admin/audit/check", {
         method: "POST", cache: "no-store",
@@ -431,18 +438,17 @@
         body: JSON.stringify({ value }),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) { $("audit-result").textContent = data.detail || "Yoxlama alınmadı."; return; }
-      $("audit-result").textContent = data.found
-        ? "Jurnalda tapıldı: " + data.count + " dəfə."
-        : "Bu dəyər jurnalda tapılmadı.";
+      if (!r.ok) { SG.setText($("audit-result"), data.detail || "Yoxlama alınmadı."); return; }
+      if (data.found) SG.setText($("audit-result"), "Jurnalda tapıldı: {n} dəfə.", { n: data.count });
+      else SG.setText($("audit-result"), "Bu dəyər jurnalda tapılmadı.");
       $("audit-matches").replaceChildren(...data.matches.map((m) => {
         const tr = el("tr");
         tr.append(el("td", "", String(m.seq)), el("td", "", when(m.ts)), el("td", "", m.category),
-          el("td", "", CHANNELS[m.channel] || m.channel), el("td", "", dept(m.dept)));
+          el("td", "", channelName(m.channel)), el("td", "", dept(m.dept)));
         return tr;
       }));
     } catch (e) {
-      $("audit-result").textContent = "Serverlə əlaqə yoxdur.";
+      SG.setText($("audit-result"), "Serverlə əlaqə yoxdur.");
     }
     $("audit-value").value = "";  // yoxlanılan dəyər ekranda qalmasın
   }
@@ -457,6 +463,15 @@
   buildMetrics(); buildLegend();
   poll();
   setInterval(poll, 2000);
+
+  // Смена языка: пересобираем плитки и легенду, остальное обновится при ближайшем опросе (раз в 2 секунды)
+  SG.onLang(() => {
+    buildMetrics(); buildLegend();
+    Object.keys(previous).forEach((k) => delete previous[k]);
+    if (lastTest) renderTest(lastTest);
+    if (!$("panel-audit").hidden) loadAudit();
+    poll();
+  });
 })();
 </script>
 </body>

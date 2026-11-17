@@ -105,6 +105,14 @@ def test_chat_masks_and_restores(ai_on):
     assert body["found"] == {"AD": 1, "FIN": 1, "TEL": 1}
 
 
+def test_chat_returns_the_raw_ai_answer_with_labels_for_the_page_to_reveal(ai_on):
+    """Страница показывает ответ AI как он пришёл (с метками) и раскрывает его у себя, по таблице в браузере."""
+    body = client.post("/api/chat", json={"text": TEXT}).json()
+    assert "[AD_1]" in body["raw_answer"] and "[FIN_1]" in body["raw_answer"]
+    assert "Elvin" not in body["raw_answer"] and "1A2B3C4" not in body["raw_answer"]  # значений в нём нет
+    assert body["raw_answer"] != body["answer"]
+
+
 def test_chat_blocks_classified_text_even_without_key():
     r = client.post("/api/chat", json={"text": "Gizli: FİN 1A2B3C4"})
     assert r.status_code == 403

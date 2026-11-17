@@ -50,10 +50,12 @@ def _with_extra(text: str, found: list, extra: list) -> list:
     return sorted(out, key=lambda f: f.start)
 
 
-def mask(text: str, extra: list | None = None) -> MaskResult:
+def mask(text: str, extra: list | None = None, start_after: dict | None = None) -> MaskResult:
+    """start_after: сколько меток каждой категории уже занято (например, в документе). Нумерация продолжается
+    после них, поэтому метки вопроса не совпадают с метками документа и не подменяют друг друга."""
     result = MaskResult(masked_text="")
     value_to_label: dict[tuple[str, str], str] = {}
-    per_category: Counter = Counter()
+    per_category: Counter = Counter(start_after or {})
     parts: list[str] = []
     pos = 0
     findings = detect(text)

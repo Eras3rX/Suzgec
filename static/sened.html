@@ -18,7 +18,7 @@
 <header class="site-header">
   <div class="bar">
     <a class="brand" href="/">
-      <img class="brand-mark" src="/static/brand/mark-64.png" width="40" height="40" alt="">
+      <img class="brand-mark" src="/static/brand/siftguard-logo-light.png" width="56" height="56" alt="">
       <span><span class="brand-name"><span class="sift">Sift</span>Guard</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
     </a>
     <nav class="site-nav" aria-label="Əsas naviqasiya">
@@ -29,6 +29,7 @@
         <li><a href="/haqqinda">Haqqında</a></li>
       </ul>
     </nav>
+    <div class="lang" id="lang-switch" role="group" aria-label="Dil seçimi"></div>
   </div>
 </header>
 <div class="statusbar">
@@ -43,7 +44,7 @@
 
   <section class="intro">
     <h1>Şəkil və PDF sənədlərin avtomatik qaralanması</h1>
-    <p>Şəxsiyyət vəsiqəsinin şəkli, ekran görüntüsü və ya PDF müqavilə yükləyin. SiftGuard FİN, telefon, IBAN, ad və digər məlumatları, şəkildə isə üz və imza sahəsini tapıb qara zolaqla örtür. Süni intellektə yalnız təmizlənmiş sənəd mətni gedir.</p>
+    <p>Şəxsiyyət vəsiqəsinin şəkli, ekran görüntüsü və ya PDF müqavilə yükləyin. SiftGuard FİN, telefon, IBAN, ad və digər məlumatları, şəkildə isə üz və imza sahəsini tapıb qara zolaqla örtür. Sənədi birbaşa süni intellektə də göndərə bilərsiniz: ona yalnız qaralanmış şəkil və etiketli mətn gedir, orijinal heç vaxt getmir.</p>
   </section>
 
   <h2>Sənədi yükləyin</h2>
@@ -64,13 +65,24 @@
       </select>
     </div>
   </div>
+  <div id="ask-block" hidden style="margin-top:16px;max-width:75ch">
+    <label for="question">Sual <span class="muted" style="font-weight:400">(AI-yə göndərəndə: ixtiyari)</span></label>
+    <textarea id="question" rows="2" maxlength="400" style="min-height:72px" placeholder="Məsələn: Bu sənəd nə haqqındadır? Və ya boş buraxın."></textarea>
+    <p id="ask-hint" class="small muted" style="margin:6px 0 0"></p>
+  </div>
   <div class="actions">
     <button type="button" class="btn" id="go" disabled>Sənədi qoru</button>
+    <button type="button" class="btn btn-secondary" id="ask" disabled hidden>Qoru və AI-yə göndər</button>
     <button type="button" class="link-btn" id="sample-card">Sintetik vəsiqə nümunəsi</button>
     <button type="button" class="link-btn" id="sample-secret">Qrifli sənəd nümunəsi</button>
   </div>
   <div id="err" class="notice notice-block" role="alert" hidden></div>
   <p id="busy" class="small muted" role="status" hidden style="margin-top:10px">Sənəd emal olunur…</p>
+  <div id="ai-wait" class="wait" hidden role="status" aria-live="polite">
+    <div class="wait-bar" aria-hidden="true"><span></span></div>
+    <p><strong id="ai-wait-title">Sənəd qaralanır</strong> <span id="ai-wait-time" class="muted"></span></p>
+    <p class="small muted" style="margin:0">Əvvəl məlumatlar qaralanır, sonra yalnız qaralanmış sənəd AI-yə göndərilir.</p>
+  </div>
 
   <div id="result" hidden>
     <h2 style="margin-top:28px">Nəticə</h2>
@@ -104,6 +116,13 @@
       <div id="masked" class="masked-box"></div>
       <p class="small muted" style="margin-top:8px">Burada orijinal dəyərlər yoxdur, yalnız etiketlər. Süni intellekt şəkli deyil, bu mətni alır.</p>
     </details>
+    <div id="ai-box" hidden>
+      <h2 style="margin-top:28px">AI cavabı</h2>
+      <p id="ai-mode" class="small muted" style="margin:6px 0 8px"></p>
+      <div id="ai-error" class="notice notice-block" role="alert" hidden></div>
+      <div id="ai-answer" class="doc" aria-live="polite"></div>
+      <p class="small muted" style="margin-top:8px;max-width:75ch">Rəngli etiketlər ([FIN_1], [AD_1]…) sənədin qaralanmış hissələridir: AI onları görmür və cavabda da açılmır.</p>
+    </div>
     <p class="small muted" style="margin-top:14px;max-width:75ch">Məhdudiyyətlər: şəkildə mətn OCR ilə oxunur (diakritik işarələr itə bilər), üz yalnız qarşıdan çəkilmiş şəkillərdə tapılır, imza «İmza» sözünün yaxınlığında axtarılır. SiftGuard nəticəni yoxlamağı əvəz etmir: göndərməzdən əvvəl qaralanmış sənədə baxın.</p>
   </div>
 </main>
@@ -115,11 +134,14 @@
   </div>
 </footer>
 
+<script src="/static/i18n-dict.js"></script>
+<script src="/static/i18n.js"></script>
 <script>
 (function () {
   "use strict";
 
   const $ = (id) => document.getElementById(id);
+  const t = SG.t;   // фраза на выбранном языке (ключ: азербайджанский текст)
   const MAX_BYTES = 10 * 1024 * 1024;
   const CATS = { AD: "Ad", FIN: "FİN", ID: "Vəsiqə", VOEN: "VÖEN", IBAN: "IBAN", KART: "Kart", TEL: "Telefon", EMAIL: "E-poçt", ADRES: "Ünvan", TARIX: "Tarix", UZ: "Üz", IMZA: "İmza" };
   const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -128,20 +150,33 @@
   let beforeUrl = null;     // şəkil üçün orijinalın müvəqqəti ünvanı (yalnız bu brauzerdə)
   let downloadUrl = null;
   let data = null, pageIndex = 0, timers = [];
+  let aiAvailable = false, waitTimer = null;
 
-  const showError = (msg) => { $("err").textContent = msg; $("err").hidden = !msg; };
+  function showError(key, params) {
+    const node = $("err");
+    if (!key) { SG.clearDynamic(node); node.textContent = ""; node.hidden = true; return; }
+    SG.setText(node, key, params);  // готовый текст сервера тоже подходит: его в словаре нет, он показывается как есть
+    node.hidden = false;
+  }
   const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
 
   // ---------- Hazırlıq ----------
   fetch("/api/config", { cache: "no-store" }).then((r) => r.json()).then((c) => {
     $("ready-chip").className = "status " + (c.redact_available ? "status-ready" : "");
-    $("ready-text").textContent = c.redact_available ? "Sənəd qoruması hazırdır" : "Sənəd qoruması quraşdırılmayıb";
+    SG.setText($("ready-text"), c.redact_available ? "Sənəd qoruması hazırdır" : "Sənəd qoruması quraşdırılmayıb");
     if (!c.redact_available) showError("Sənəd qoruması bu serverdə quraşdırılmayıb (requirements-vision.txt).");
-  }).catch(() => { $("ready-text").textContent = "Server cavab vermir"; });
+    aiAvailable = !!(c.ai_available && c.redact_available);
+    $("ask").hidden = !aiAvailable; $("ask-block").hidden = !aiAvailable;
+    $("ask").disabled = !aiAvailable || !chosen;
+    SG.setText($("ask-hint"), c.vision_available
+      ? "AI qaralanmış şəkli görəcək (qaralanmış hissələr qara zolaq kimi) və sənədin etiketli mətnini alacaq."
+      : "Qoşulmuş AI modeli şəkil qəbul etmir: yalnız qaralanmış sənədin etiketli mətni göndəriləcək.");
+  }).catch(() => { SG.setText($("ready-text"), "Server cavab vermir"); });
 
   function setFile(blob, name) {
     chosen = blob;
     $("go").disabled = !blob;
+    $("ask").disabled = !blob || !aiAvailable;
     showError("");
   }
 
@@ -174,34 +209,98 @@
     }
     return new Promise((resolve) => c.toBlob(resolve, "image/png"));
   }
-  $("sample-card").addEventListener("click", async () => { setFile(await drawCard(false)); $("file").value = ""; run(); });
-  $("sample-secret").addEventListener("click", async () => { setFile(await drawCard(true)); $("file").value = ""; run(); });
+  $("sample-card").addEventListener("click", async () => { setFile(await drawCard(false)); $("file").value = ""; run(false); });
+  $("sample-secret").addEventListener("click", async () => { setFile(await drawCard(true)); $("file").value = ""; run(false); });
 
   // ---------- Sorğu ----------
-  async function run() {
+  function startWait() {
+    const t0 = Date.now();
+    $("ai-wait-time").textContent = "";
+    SG.setText($("ai-wait-title"), "Sənəd qaralanır və AI-yə göndərilir…");
+    waitTimer = setInterval(() => {
+      const s = Math.round((Date.now() - t0) / 1000);
+      $("ai-wait-time").textContent = t("({n} san.)", { n: s });
+      if (s >= 3) SG.setText($("ai-wait-title"), "AI cavab yazır…");
+    }, 1000);
+    $("ai-wait").hidden = false;
+  }
+  function stopWait() { clearInterval(waitTimer); $("ai-wait").hidden = true; }
+
+  // AI cavabında etiketlər rəngli plaka kimi göstərilir: bunlar qaralanmış, AI-nin görmədiyi hissələrdir.
+  function renderAnswer(text) {
+    const nodes = [];
+    let last = 0;
+    text.replace(/\[([A-Z]+)_\d+\]/g, (m, cat, idx) => {
+      if (idx > last) nodes.push(text.slice(last, idx));
+      const chip = document.createElement("span"); chip.className = "chip"; chip.dataset.cat = cat; chip.textContent = m;
+      nodes.push(chip); last = idx + m.length; return m;
+    });
+    if (last < text.length) nodes.push(text.slice(last));
+    $("ai-answer").replaceChildren(...nodes);
+  }
+
+  function showAi(body) {
+    $("ai-box").hidden = false;
+    $("ai-error").hidden = !body.ai_error;
+    if (body.ai_error) SG.setText($("ai-error"), body.ai_error); else { SG.clearDynamic($("ai-error")); $("ai-error").textContent = ""; }
+    $("ai-answer").hidden = !body.answer;
+    if (body.ai_mode === "image") SG.setText($("ai-mode"), "AI qaralanmış şəkli gördü və sənədin etiketli mətnini aldı.");
+    else if (body.ai_mode === "text") SG.setText($("ai-mode"), "AI yalnız qaralanmış sənədin etiketli mətnini aldı (şəkil göndərilmədi).");
+    else { SG.clearDynamic($("ai-mode")); $("ai-mode").textContent = ""; }
+    if (body.answer) renderAnswer(body.answer);
+  }
+
+  async function run(withAi) {
     if (!chosen) return;
     clearTimers(); showError("");
-    $("result").hidden = true; $("busy").hidden = false; $("go").disabled = true;
+    $("result").hidden = true; $("ai-box").hidden = true; $("go").disabled = true; $("ask").disabled = true;
+    if (withAi) startWait(); else $("busy").hidden = false;
     const blob = chosen;
     try {
-      const r = await fetch("/api/redact", {
-        method: "POST", cache: "no-store",
-        headers: { "Content-Type": "application/octet-stream", "X-Department": $("dept").value },
-        body: blob,
-      });
+      const headers = SG.headers({ "Content-Type": "application/octet-stream", "X-Department": $("dept").value });
+      if (withAi) headers["X-Question"] = encodeURIComponent($("question").value.trim().slice(0, 400));
+      const r = await fetch(withAi ? "/api/ask-document" : "/api/redact", { method: "POST", cache: "no-store", headers, body: blob });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) { showError(body.detail || "Sənəd emal olunmadı."); return; }
       data = body;
       show(blob);
+      if (withAi) { showAi(body); $("ai-box").scrollIntoView({ block: "nearest" }); }
     } catch (e) {
       showError("Serverlə əlaqə yoxdur.");
     } finally {
-      $("busy").hidden = true; $("go").disabled = !chosen;
+      stopWait();
+      $("busy").hidden = true; $("go").disabled = !chosen; $("ask").disabled = !chosen || !aiAvailable;
     }
   }
-  $("go").addEventListener("click", run);
+  $("go").addEventListener("click", () => run(false));
+  $("ask").addEventListener("click", () => run(true));
 
   // ---------- Nəticə ----------
+  function renderFacts() {
+    if (!data) return;
+    const counts = data.counts || {};
+    const personal = Object.entries(counts).filter(([k]) => k !== "UZ" && k !== "IMZA").reduce((a, [, v]) => a + v, 0);
+    const parts = [["Məlumat", personal], ["Üz", counts.UZ || 0], ["İmza", counts.IMZA || 0], ["Səhifə", data.page_count], ["Müddət (san.)", (data.elapsed_ms / 1000).toFixed(1)]];
+    $("facts").replaceChildren(...parts.map(([name, n]) => {
+      const box = document.createElement("span");
+      const strong = document.createElement("strong"); strong.textContent = String(n);
+      box.append(strong, document.createTextNode(t(name)));
+      return box;
+    }));
+    SG.clearDynamic($("masked"));
+    $("masked").textContent = data.masked_text.trim() || t("(mətn tapılmadı)");
+  }
+
+  function renderPager() {
+    if (!data) return;
+    $("pager").replaceChildren(...data.pages.map((p, i) => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = t("Səhifə {n}", { n: i + 1 });
+      b.setAttribute("aria-pressed", String(i === pageIndex)); b.addEventListener("click", () => showPage(i));
+      return b;
+    }));
+    $("pager").hidden = data.pages.length < 2;
+  }
+
   function show(blob) {
     if (beforeUrl) URL.revokeObjectURL(beforeUrl);
     beforeUrl = data.kind === "image" ? URL.createObjectURL(blob) : null;
@@ -211,23 +310,8 @@
     downloadUrl = URL.createObjectURL(new Blob([bytes], { type: data.file.mime }));
     $("download").href = downloadUrl; $("download").download = data.file.name;
 
-    const counts = data.counts || {};
-    const personal = Object.entries(counts).filter(([k]) => k !== "UZ" && k !== "IMZA").reduce((a, [, v]) => a + v, 0);
-    const parts = [["Məlumat", personal], ["Üz", counts.UZ || 0], ["İmza", counts.IMZA || 0], ["Səhifə", data.page_count], ["Müddət (san.)", (data.elapsed_ms / 1000).toFixed(1)]];
-    $("facts").replaceChildren(...parts.map(([name, n]) => {
-      const box = document.createElement("span");
-      const strong = document.createElement("strong"); strong.textContent = String(n);
-      box.append(strong, document.createTextNode(name));
-      return box;
-    }));
-
-    $("masked").textContent = data.masked_text.trim() || "(mətn tapılmadı)";
-    $("pager").replaceChildren(...data.pages.map((p, i) => {
-      const b = document.createElement("button"); b.type = "button"; b.textContent = "Səhifə " + (i + 1);
-      b.setAttribute("aria-pressed", String(i === 0)); b.addEventListener("click", () => showPage(i));
-      return b;
-    }));
-    $("pager").hidden = data.pages.length < 2;
+    renderFacts();
+    renderPager();
     $("result").hidden = false;
     showPage(0);
   }
@@ -242,7 +326,7 @@
     const zones = $("zones");
     zones.replaceChildren(...p.boxes.map((b) => {
       const z = document.createElement("div"); z.className = "zone"; z.dataset.cat = b.category;
-      z.title = CATS[b.category] || b.category;
+      z.title = t(CATS[b.category] || b.category);
       z.style.left = b.x * 100 + "%"; z.style.top = b.y * 100 + "%"; z.style.width = b.w * 100 + "%"; z.style.height = b.h * 100 + "%";
       return z;
     }));
@@ -265,8 +349,21 @@
   }
 
   $("copy").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText($("masked").textContent); $("copy-status").textContent = "Kopyalandı."; }
-    catch (e) { $("copy-status").textContent = "Kopyalamaq alınmadı: mətni əl ilə seçin."; }
+    try { await navigator.clipboard.writeText($("masked").textContent); SG.setText($("copy-status"), "Kopyalandı."); }
+    catch (e) { SG.setText($("copy-status"), "Kopyalamaq alınmadı: mətni əl ilə seçin."); }
+  });
+  // Смена языка: пересобираем то, что страница строит сама
+  SG.onLang(() => {
+    renderFacts();
+    renderPager();
+    if (data) {
+      document.querySelectorAll("#zones .zone").forEach((z) => { z.title = t(CATS[z.dataset.cat] || z.dataset.cat); });
+    }
+    fetch("/api/config", { cache: "no-store" }).then((r) => r.json()).then((c) => {
+      SG.setText($("ask-hint"), c.vision_available
+        ? "AI qaralanmış şəkli görəcək (qaralanmış hissələr qara zolaq kimi) və sənədin etiketli mətnini alacaq."
+        : "Qoşulmuş AI modeli şəkil qəbul etmir: yalnız qaralanmış sənədin etiketli mətni göndəriləcək.");
+    }).catch(() => {});
   });
 })();
 </script>

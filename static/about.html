@@ -17,7 +17,7 @@
 <header class="site-header">
   <div class="bar">
     <a class="brand" href="/">
-      <img class="brand-mark" src="/static/brand/mark-64.png" width="40" height="40" alt="">
+      <img class="brand-mark" src="/static/brand/siftguard-logo-light.png" width="56" height="56" alt="">
       <span><span class="brand-name"><span class="sift">Sift</span>Guard</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
     </a>
     <nav class="site-nav" aria-label="Əsas naviqasiya">
@@ -28,19 +28,23 @@
         <li><a href="/haqqinda" aria-current="page">Haqqında</a></li>
       </ul>
     </nav>
+    <div class="lang" id="lang-switch" role="group" aria-label="Dil seçimi"></div>
   </div>
 </header>
 
 <main id="main" class="wrap">
-  <div class="page-title">
+  <div class="page-title hero">
+    <div class="hero-text">
     <h1>SiftGuard haqqında</h1>
     <p>Dövlət qurumları və banklar üçün nəzərdə tutulmuş vasitə: işçi süni intellektdən istifadə edərkən şəxsi məlumatlar xaricə çıxmır.</p>
+    </div>
+    <img class="hero-logo" src="/static/brand/siftguard-logo.png" width="168" height="168" alt="SiftGuard">
   </div>
 
   <article class="prose">
     <h2>SiftGuard nədir</h2>
-    <p class="small muted">Ad ingiliscə iki sözdən ibarətdir: <em>sift</em> (süzmək) və <em>guard</em> (qorumaq). Loqotipdə qalxanın sol yarısında məlumat axını süzülür, sağ yarısında qorunur.</p>
-    <p>SiftGuard işçi ilə süni intellekt xidməti arasında yerləşən filtrdir. İşçi mətni daxil edir, SiftGuard mətndəki şəxsi məlumatları tapır və onları <strong>[AD_1]</strong>, <strong>[FIN_1]</strong> kimi etiketlərlə əvəz edir. Süni intellektə yalnız etiketli mətn göndərilir. Cavab gələndən sonra etiketlər orijinal məlumatlarla əvəz olunur. Rəhbərlik yalnız kateqoriyalar üzrə say göstəricilərini görür, mətnləri yox.</p>
+    <p class="small muted" data-i18n-rich="about.name">Ad ingiliscə iki sözdən ibarətdir: <em>sift</em> (süzmək) və <em>guard</em> (qorumaq). Loqotipdə qalxanın sol yarısında məlumat axını süzülür, sağ yarısında qorunur.</p>
+    <p data-i18n-rich="about.what">SiftGuard işçi ilə süni intellekt xidməti arasında yerləşən filtrdir. İşçi mətni daxil edir, SiftGuard mətndəki şəxsi məlumatları tapır və onları <strong>[AD_1]</strong>, <strong>[FIN_1]</strong> kimi etiketlərlə əvəz edir. Süni intellektə yalnız etiketli mətn göndərilir. Cavab gələndən sonra etiketlər orijinal məlumatlarla əvəz olunur. Rəhbərlik yalnız kateqoriyalar üzrə say göstəricilərini görür, mətnləri yox.</p>
 
     <h2>Necə işləyir</h2>
     <ol>
@@ -89,5 +93,7 @@
     <span>SiftGuard · OYU CyberAI Hackathon 2026</span>
   </div>
 </footer>
+<script src="/static/i18n-dict.js"></script>
+<script src="/static/i18n.js"></script>
 </body>
 </html>
