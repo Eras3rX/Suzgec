@@ -58,7 +58,8 @@ def test_light_text_on_dark_fills_is_readable():
 
 
 def test_every_category_chip_has_readable_text():
-    assert set(CATEGORIES) == {"AD", "FIN", "ID", "VOEN", "IBAN", "KART", "TEL", "EMAIL", "ADRES", "TARIX"}
+    # UZ и IMZA: зоны на изображениях (лицо, подпись), см. app/redact.py
+    assert set(CATEGORIES) == {"AD", "FIN", "ID", "VOEN", "IBAN", "KART", "TEL", "EMAIL", "ADRES", "TARIX", "UZ", "IMZA"}
     for name, bg in CATEGORIES.items():
         assert contrast(TOKENS["ink"], bg) >= 7, (name, contrast(TOKENS["ink"], bg))
 
@@ -88,7 +89,8 @@ def test_red_is_used_only_for_blocking_and_critical_things():
 
 
 def test_accent_green_means_protected_only():
-    allowed = ("status-ready", "summary", "notice-ok", "delta", "bump")
+    # pane-after и facts: «после» на странице документов, то есть защищённый результат
+    allowed = ("status-ready", "summary", "notice-ok", "delta", "bump", "pane-after", "facts")
     for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", CSS):
         if re.search(r"var\(--accent(-bg|-line)?\)", body):
             assert any(key in selector for key in allowed), selector.strip()

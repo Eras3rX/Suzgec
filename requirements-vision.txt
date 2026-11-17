@@ -1,0 +1,10 @@
+# Необязательные зависимости для страницы «Sənəd süzgəci» (закраска PDF и изображений).
+# Без них сайт работает как раньше, а /api/redact отвечает 503. Установка: pip install -r requirements-vision.txt
+# Проверено на: pymupdf 2.1, pillow 13.0, opencv-python-headless 4.11, rapidocr-onnxruntime 1.4.4.
+pymupdf>=1.24          # PDF: слова с координатами, настоящее удаление текста под закраской (лицензия AGPL)
+pillow>=10.1           # изображения
+numpy>=1.26
+# OpenCV строго ниже 5: в версии 5 убрали каскады для поиска лиц. Ставьте ОДИН из пакетов (opencv-python или -headless),
+# иначе они затирают друг друга. rapidocr-onnxruntime сам требует opencv-python, поэтому в обычной установке это он.
+opencv-python>=4.8,<5
+rapidocr-onnxruntime>=1.3   # офлайн OCR (ONNX), модели внутри пакета

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Süzgəc — sənəd süzgəci</title>
+  <meta name="description" content="Şəkil və PDF sənədlərdə FİN, telefon, IBAN, ad, üz və imza avtomatik qaralanır; süni intellektə yalnız təmizlənmiş sənəd gedir.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/noto-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/noto-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts/faces.css">
+  <link rel="stylesheet" href="/static/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Əsas məzmuna keç</a>
+
+<header class="site-header">
+  <div class="bar">
+    <a class="brand" href="/">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="19" fill="#ffffff"/>
+        <g fill="#0b2545">
+          <circle cx="12" cy="12" r="2.8"/><circle cx="20" cy="12" r="2.8"/><circle cx="28" cy="12" r="2.8"/>
+          <circle cx="12" cy="20" r="2.8"/><circle cx="28" cy="20" r="2.8"/>
+          <circle cx="12" cy="28" r="2.8"/><circle cx="20" cy="28" r="2.8"/><circle cx="28" cy="28" r="2.8"/>
+        </g>
+        <circle cx="20" cy="20" r="3.4" fill="#0a7a5a"/>
+      </svg>
+      <span><span class="brand-name">Süzgəc</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
+    </a>
+    <nav class="site-nav" aria-label="Əsas naviqasiya">
+      <ul>
+        <li><a href="/">Əsas səhifə</a></li>
+        <li><a href="/sened" aria-current="page">Sənəd süzgəci</a></li>
+        <li><a href="/admin" target="_blank" rel="noopener">İdarəetmə paneli<span class="visually-hidden"> (yeni vərəqdə açılır)</span></a></li>
+        <li><a href="/haqqinda">Haqqında</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+<div class="statusbar">
+  <div class="bar">
+    <span id="ready-chip" class="status" role="status"><span class="status-dot"></span><span id="ready-text">Sənəd süzgəci yoxlanılır…</span></span>
+    <span>Fayllar serverdə saxlanmır: yalnız yaddaşda emal olunur</span>
+  </div>
+</div>
+
+<main id="main" class="wrap">
+  <noscript><div class="notice notice-warn"><p>Bu səhifə JavaScript tələb edir.</p></div></noscript>
+
+  <section class="intro">
+    <h1>Şəkil və PDF sənədlərin avtomatik qaralanması</h1>
+    <p>Şəxsiyyət vəsiqəsinin şəkli, ekran görüntüsü və ya PDF müqavilə yükləyin. Süzgəc FİN, telefon, IBAN, ad və digər məlumatları, şəkildə isə üz və imza sahəsini tapıb qara zolaqla örtür. Süni intellektə yalnız təmizlənmiş sənəd mətni gedir.</p>
+  </section>
+
+  <h2>Sənədi yükləyin</h2>
+  <p class="small muted" style="margin:6px 0 0;max-width:75ch">PNG, JPG, WEBP və ya PDF, 10 MB-a qədər (PDF üçün 10 səhifəyə qədər). Real sənəd olmadan sınamaq üçün aşağıdakı sintetik nümunələrdən istifadə edin.</p>
+
+  <div class="file-row">
+    <div>
+      <label for="file">Fayl</label>
+      <input type="file" id="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp">
+    </div>
+    <div>
+      <label for="dept">Şöbə <span class="muted" style="font-weight:400">(yalnız statistika üçün)</span></label>
+      <select id="dept">
+        <option value="">Seçilməyib</option>
+        <option value="maliyye">Maliyyə</option>
+        <option value="hr">HR</option>
+        <option value="huquq">Hüquq</option>
+      </select>
+    </div>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn" id="go" disabled>Süzgəcdən keçir</button>
+    <button type="button" class="link-btn" id="sample-card">Sintetik vəsiqə nümunəsi</button>
+    <button type="button" class="link-btn" id="sample-secret">Qrifli sənəd nümunəsi</button>
+  </div>
+  <div id="err" class="notice notice-block" role="alert" hidden></div>
+  <p id="busy" class="small muted" role="status" hidden style="margin-top:10px">Sənəd emal olunur…</p>
+
+  <div id="result" hidden>
+    <h2 style="margin-top:28px">Nəticə</h2>
+    <div id="facts" class="facts" role="status"></div>
+    <div id="pager" class="pager" role="group" aria-label="Səhifələr"></div>
+
+    <div class="compare">
+      <section class="pane pane-before" aria-label="Süzgəcsiz sənəd">
+        <div class="pane-head"><span>Süzgəcsiz</span><span class="sub">AI-yə belə gedərdi</span></div>
+        <div class="doc-stage" id="stage-before">
+          <img id="img-before" alt="Orijinal sənəd. Yalnız sizin brauzerinizdə göstərilir.">
+          <div id="zones"></div>
+          <div class="scan-line" id="scan"></div>
+        </div>
+      </section>
+      <section class="pane pane-after" aria-label="Süzgəclə sənəd">
+        <div class="pane-head"><span>Süzgəclə</span><span class="sub">AI-yə bu gedir</span></div>
+        <div class="doc-stage" id="stage-after">
+          <img id="img-after" class="reveal" alt="Qaralanmış sənəd. Məlumatlar qara zolaqla örtülüb.">
+        </div>
+      </section>
+    </div>
+
+    <div class="actions">
+      <a class="btn" id="download" download>Qaralanmış faylı yüklə</a>
+      <button type="button" class="btn btn-secondary" id="copy">AI üçün mətni kopyala</button>
+      <span id="copy-status" class="muted" role="status"></span>
+    </div>
+    <details class="disclosure" style="margin-top:14px">
+      <summary>AI üçün təmizlənmiş mətn</summary>
+      <div id="masked" class="masked-box"></div>
+      <p class="small muted" style="margin-top:8px">Burada orijinal dəyərlər yoxdur, yalnız etiketlər. Süni intellekt şəkli deyil, bu mətni alır.</p>
+    </details>
+    <p class="small muted" style="margin-top:14px;max-width:75ch">Məhdudiyyətlər: şəkildə mətn OCR ilə oxunur (diakritik işarələr itə bilər), üz yalnız qarşıdan çəkilmiş şəkillərdə tapılır, imza «İmza» sözünün yaxınlığında axtarılır. Süzgəc nəticəni yoxlamağı əvəz etmir: göndərməzdən əvvəl qaralanmış sənədə baxın.</p>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="bar">
+    <span><strong>Məlumatların qorunması.</strong> Fayllar serverdə saxlanmır və qeydə alınmır, yalnız say göstəriciləri toplanır.</span>
+    <span>Süzgəc · OYU CyberAI Hackathon 2026</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const MAX_BYTES = 10 * 1024 * 1024;
+  const CATS = { AD: "Ad", FIN: "FİN", ID: "Vəsiqə", VOEN: "VÖEN", IBAN: "IBAN", KART: "Kart", TEL: "Telefon", EMAIL: "E-poçt", ADRES: "Ünvan", TARIX: "Tarix", UZ: "Üz", IMZA: "İmza" };
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let chosen = null;        // seçilmiş fayl (Blob)
+  let beforeUrl = null;     // şəkil üçün orijinalın müvəqqəti ünvanı (yalnız bu brauzerdə)
+  let downloadUrl = null;
+  let data = null, pageIndex = 0, timers = [];
+
+  const showError = (msg) => { $("err").textContent = msg; $("err").hidden = !msg; };
+  const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
+
+  // ---------- Hazırlıq ----------
+  fetch("/api/config", { cache: "no-store" }).then((r) => r.json()).then((c) => {
+    $("ready-chip").className = "status " + (c.redact_available ? "status-ready" : "");
+    $("ready-text").textContent = c.redact_available ? "Sənəd süzgəci hazırdır" : "Sənəd süzgəci quraşdırılmayıb";
+    if (!c.redact_available) showError("Sənəd süzgəci bu serverdə quraşdırılmayıb (requirements-vision.txt).");
+  }).catch(() => { $("ready-text").textContent = "Server cavab vermir"; });
+
+  function setFile(blob, name) {
+    chosen = blob;
+    $("go").disabled = !blob;
+    showError("");
+  }
+
+  $("file").addEventListener("change", () => {
+    const f = $("file").files[0];
+    if (!f) return setFile(null);
+    if (f.size > MAX_BYTES) { setFile(null); return showError("Fayl çox böyükdür: maksimum 10 MB."); }
+    setFile(f);
+  });
+
+  // ---------- Sintetik nümunələr (real şəxs yoxdur) ----------
+  function drawCard(secret) {
+    const c = document.createElement("canvas");
+    c.width = 900; c.height = 540;
+    const g = c.getContext("2d");
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, c.width, c.height);
+    g.strokeStyle = "#0b2545"; g.lineWidth = 3; g.strokeRect(10, 10, c.width - 20, c.height - 20);
+    g.fillStyle = "#000000";
+    const font = '28px "Noto Sans", Arial, sans-serif';
+    g.font = "bold 28px 'Noto Sans', Arial, sans-serif";
+    g.fillText(secret ? "Məxfi" : "AZƏRBAYCAN RESPUBLİKASI", 40, 60);
+    g.font = font;
+    const lines = secret
+      ? ["Daxili sənəd. Aysel Quliyeva üçün kredit qərarı.", "FİN: 5ARZ8D2"]
+      : ["Soyadı: Quliyeva", "Adı: Aysel", "FİN: 5ARZ8D2", "Seriya: AZE12345678", "Telefon: +994 50 123 45 67", "İmza:"];
+    lines.forEach((t, i) => g.fillText(t, 40, 125 + i * 56));
+    if (!secret) {
+      g.strokeStyle = "#000000"; g.lineWidth = 4; g.beginPath();
+      g.moveTo(150, 440); g.lineTo(190, 405); g.lineTo(230, 460); g.lineTo(280, 400); g.lineTo(320, 455); g.lineTo(390, 420); g.stroke();
+    }
+    return new Promise((resolve) => c.toBlob(resolve, "image/png"));
+  }
+  $("sample-card").addEventListener("click", async () => { setFile(await drawCard(false)); $("file").value = ""; run(); });
+  $("sample-secret").addEventListener("click", async () => { setFile(await drawCard(true)); $("file").value = ""; run(); });
+
+  // ---------- Sorğu ----------
+  async function run() {
+    if (!chosen) return;
+    clearTimers(); showError("");
+    $("result").hidden = true; $("busy").hidden = false; $("go").disabled = true;
+    const blob = chosen;
+    try {
+      const r = await fetch("/api/redact", {
+        method: "POST", cache: "no-store",
+        headers: { "Content-Type": "application/octet-stream", "X-Department": $("dept").value },
+        body: blob,
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) { showError(body.detail || "Sənəd emal olunmadı."); return; }
+      data = body;
+      show(blob);
+    } catch (e) {
+      showError("Serverlə əlaqə yoxdur.");
+    } finally {
+      $("busy").hidden = true; $("go").disabled = !chosen;
+    }
+  }
+  $("go").addEventListener("click", run);
+
+  // ---------- Nəticə ----------
+  function show(blob) {
+    if (beforeUrl) URL.revokeObjectURL(beforeUrl);
+    beforeUrl = data.kind === "image" ? URL.createObjectURL(blob) : null;
+
+    if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+    const bytes = Uint8Array.from(atob(data.file.data), (ch) => ch.charCodeAt(0));
+    downloadUrl = URL.createObjectURL(new Blob([bytes], { type: data.file.mime }));
+    $("download").href = downloadUrl; $("download").download = data.file.name;
+
+    const counts = data.counts || {};
+    const personal = Object.entries(counts).filter(([k]) => k !== "UZ" && k !== "IMZA").reduce((a, [, v]) => a + v, 0);
+    const parts = [["Məlumat", personal], ["Üz", counts.UZ || 0], ["İmza", counts.IMZA || 0], ["Səhifə", data.page_count], ["Müddət (san.)", (data.elapsed_ms / 1000).toFixed(1)]];
+    $("facts").replaceChildren(...parts.map(([name, n]) => {
+      const box = document.createElement("span");
+      const strong = document.createElement("strong"); strong.textContent = String(n);
+      box.append(strong, document.createTextNode(name));
+      return box;
+    }));
+
+    $("masked").textContent = data.masked_text.trim() || "(mətn tapılmadı)";
+    $("pager").replaceChildren(...data.pages.map((p, i) => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = "Səhifə " + (i + 1);
+      b.setAttribute("aria-pressed", String(i === 0)); b.addEventListener("click", () => showPage(i));
+      return b;
+    }));
+    $("pager").hidden = data.pages.length < 2;
+    $("result").hidden = false;
+    showPage(0);
+  }
+
+  function showPage(i) {
+    clearTimers(); pageIndex = i;
+    document.querySelectorAll("#pager button").forEach((b, k) => b.setAttribute("aria-pressed", String(k === i)));
+    const p = data.pages[i];
+    $("img-before").src = beforeUrl || "data:image/png;base64," + p.before;
+    $("img-after").src = "data:image/png;base64," + p.after;
+
+    const zones = $("zones");
+    zones.replaceChildren(...p.boxes.map((b) => {
+      const z = document.createElement("div"); z.className = "zone"; z.dataset.cat = b.category;
+      z.title = CATS[b.category] || b.category;
+      z.style.left = b.x * 100 + "%"; z.style.top = b.y * 100 + "%"; z.style.width = b.w * 100 + "%"; z.style.height = b.h * 100 + "%";
+      return z;
+    }));
+
+    const after = $("img-after"), scan = $("scan");
+    after.className = "reveal"; scan.className = "scan-line";
+    if (reduced) {  // animasiyasız: nəticə dərhal görünür
+      after.classList.add("now"); zones.childNodes.forEach((z) => z.classList.add("on"));
+      return;
+    }
+    const ms = Math.max(1200, Math.min(2600, 900 + p.boxes.length * 160));
+    document.documentElement.style.setProperty("--scan-ms", ms + "ms");
+    // iki kadr gözləyirik ki, başlanğıc vəziyyət çəkilsin, sonra keçid başlasın
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      scan.classList.add("go"); after.classList.add("go");
+      [...zones.childNodes].forEach((z, k) => {
+        timers.push(setTimeout(() => z.classList.add("on"), p.boxes[k].y * ms));
+      });
+    }));
+  }
+
+  $("copy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("masked").textContent); $("copy-status").textContent = "Kopyalandı."; }
+    catch (e) { $("copy-status").textContent = "Kopyalamaq alınmadı: mətni əl ilə seçin."; }
+  });
+})();
+</script>
+</body>
+</html>

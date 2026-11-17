@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from threading import Lock
 
 MAX_INCIDENTS = 200  # старые вытесняются: журнал не растёт бесконечно
-CHANNELS = {"chat", "mask", "extension"}
+CHANNELS = {"chat", "mask", "extension", "redact"}
 
 
 class IncidentLog:
@@ -21,7 +21,7 @@ class IncidentLog:
         self._lock = Lock()
 
     def add(self, category: str, category_name: str, channel: str) -> dict:
-        """Записать инцидент. channel: chat | mask | extension."""
+        """Записать инцидент. channel: chat | mask | extension | redact."""
         with self._lock:
             self._last_id += 1
             item = {

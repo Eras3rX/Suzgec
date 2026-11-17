@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import base64
 import hmac
 import logging
 import mimetypes
@@ -13,15 +14,16 @@ from collections import Counter
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
+from threading import BoundedSemaphore, Lock
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app import evaluation, ml_detector
+from app import evaluation, ml_detector, redact
 from app.audit import AuditLog
 from app.detector import CLASSIFICATION_NAMES, classify, detect
 from app.incidents import IncidentLog
@@ -35,7 +37,11 @@ MAX_BODY_BYTES = 64 * 1024  # 5000 символов даже с экраниро
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 # Общий дневной потолок настоящих вызовов AI: публичная ссылка не должна сжечь баланс ключа API.
 DAILY_LLM_LIMIT = int(os.getenv("DAILY_LLM_LIMIT", "300"))
-RATE_LIMITED_PATHS = {"/api/check", "/api/mask", "/api/chat"}
+RATE_LIMITED_PATHS = {"/api/check", "/api/mask", "/api/chat", "/api/redact"}
+# Загрузка документов: тело запроса — сам файл (не multipart), поэтому он целиком живёт в памяти запроса
+# и не попадает во временные файлы на диске.
+UPLOAD_PATHS = {"/api/redact"}
+_redact_slots = BoundedSemaphore(int(os.getenv("REDACT_CONCURRENCY", "2")))  # OCR тяжёлый: не больше N сразу
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 limiter = RateLimiter(RATE_LIMIT_PER_MINUTE, 60.0)
@@ -70,6 +76,7 @@ def _audit_blocked(category_name: str, channel: str, department: str) -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     ml_detector.start_background_load()  # модель грузится в фоне; пока она не готова, работают правила
+    redact.warm_up()                     # то же для распознавания текста на картинках
     yield
 
 
@@ -127,7 +134,10 @@ async def guard(request: Request, call_next):
     path = request.url.path
     if request.method == "POST" and path in RATE_LIMITED_PATHS:
         length = request.headers.get("content-length")
-        if length and length.isdigit() and int(length) > MAX_BODY_BYTES:
+        if path in UPLOAD_PATHS:
+            if length and length.isdigit() and int(length) > redact.MAX_UPLOAD_BYTES:
+                return _error(413, "Fayl çox böyükdür: maksimum 10 MB.")
+        elif length and length.isdigit() and int(length) > MAX_BODY_BYTES:
             return _error(413, f"Sorğu çox böyükdür. Mətn {MAX_TEXT_LENGTH} simvoldan çox olmamalıdır.")
         allowed, retry_after = limiter.allow(request.client.host if request.client else "unknown")
         if not allowed:
@@ -144,7 +154,7 @@ async def guard(request: Request, call_next):
         return _error(500, "Serverdə daxili xəta baş verdi. Yenidən cəhd edin.")
     if path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
-    elif path.startswith("/static/") or path in ("/", "/admin", "/haqqinda"):
+    elif path.startswith("/static/") or path in ("/", "/admin", "/haqqinda", "/sened"):
         response.headers["Cache-Control"] = "no-cache"  # браузер перепроверяет файл (ETag), а не показывает устаревший вид
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
@@ -170,6 +180,11 @@ def index():
 @app.get("/haqqinda")
 def about_page():
     return FileResponse(STATIC_DIR / "about.html")
+
+
+@app.get("/sened")
+def document_page():
+    return FileResponse(STATIC_DIR / "sened.html")
 
 
 def _blocked_message(category: str) -> str:
@@ -202,6 +217,11 @@ def _block_classified(text: str, channel: str, request: Request, department: str
     category = classify(text)
     if category is None:
         return None
+    return _register_block(category, channel, request, department)
+
+
+def _register_block(category: str, channel: str, request: Request, department: str | None) -> JSONResponse:
+    """Занести блокировку в счётчики, журнал инцидентов и журнал аудита; вернуть ответ 403."""
     if request.headers.get("x-suzgec-client", "").lower() == "extension":
         channel = "extension"
     name = CLASSIFICATION_NAMES[category]
@@ -223,7 +243,7 @@ def _block_classified(text: str, channel: str, request: Request, department: str
 @app.get("/api/config")
 def config():
     """Что доступно на этом сервере. Страница прячет режим «Встроенный AI», если ключа нет."""
-    return {"ai_available": ai_enabled(), "model": ml_detector.status()}
+    return {"ai_available": ai_enabled(), "model": ml_detector.status(), "redact_available": redact.available()}
 
 
 def _count_protected(masked, department: str | None) -> None:
@@ -292,6 +312,65 @@ def chat(body: TextIn, request: Request):
         "answer": answer,
         "found": dict(masked.counts),
         "warnings": warnings,
+    }
+
+
+async def _read_upload(request: Request) -> bytes:
+    """Тело запроса — сам файл. Читаем в память с жёстким потолком, ничего не сохраняя на диск."""
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > redact.MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Fayl çox böyükdür: maksimum 10 MB.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+@app.post("/api/redact")
+async def redact_document(request: Request):
+    """Автоматическая закраска PDF или изображения (тело запроса = файл; отдел в заголовке X-Department).
+
+    Назад: закрашенный файл (base64), превью «до/после» с координатами зон, счётчики и замаскированный текст
+    документа для AI. Исходный файл и найденные значения нигде не сохраняются.
+    """
+    if not redact.available():
+        raise HTTPException(status_code=503, detail="Sənəd süzgəci quraşdırılmayıb (requirements-vision.txt).")
+    data = await _read_upload(request)
+    department = request.headers.get("x-department")
+    if not _redact_slots.acquire(blocking=False):
+        raise HTTPException(status_code=429, detail="Sistem məşğuldur: sənəd emal olunur. Bir az gözləyib yenidən cəhd edin.")
+    try:
+        result = await run_in_threadpool(redact.redact_file, data)
+    except redact.RedactError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        _log.error("redact failed: %s", type(exc).__name__)  # только тип ошибки, без содержимого документа
+        raise HTTPException(status_code=500, detail="Sənəd emal olunmadı. Başqa fayl yoxlayın.") from exc
+    finally:
+        _redact_slots.release()
+        del data
+
+    if result.blocked:
+        return _register_block(result.blocked, "redact", request, department)
+
+    masked = result.masked
+    with TemporaryVault(masked.mapping):
+        _audit_detected(masked, "redact", request, department)
+    _count_protected(masked, department)
+    with _stats_lock:
+        _totals["redacted_files"] += 1
+        _totals["faces"] += result.counts.get("UZ", 0)
+        _totals["signatures"] += result.counts.get("IMZA", 0)
+    return {
+        "blocked": False,
+        "kind": result.kind,
+        "page_count": result.page_count,
+        "elapsed_ms": round(result.elapsed_ms),
+        "counts": dict(result.counts),
+        "masked_text": masked.masked_text,
+        "pages": result.pages,
+        "file": {"mime": result.mime, "name": "suzgec-qaralanmis." + ("pdf" if result.kind == "pdf" else "png"),
+                 "data": base64.b64encode(result.data).decode("ascii")},
     }
 
 
@@ -374,6 +453,7 @@ def admin_stats(request: Request):
             "blocked_categories": dict(_blocked_categories),
             "sources": dict(_source_counts),
             "departments": departments,
+            "documents": {"files": _totals["redacted_files"], "faces": _totals["faces"], "signatures": _totals["signatures"]},
             "vault": TemporaryVault.stats(),
         }
 

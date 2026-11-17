@@ -30,6 +30,7 @@
     <nav class="site-nav" aria-label="Əsas naviqasiya">
       <ul>
         <li><a href="/">Əsas səhifə</a></li>
+        <li><a href="/sened">Sənəd süzgəci</a></li>
         <li><a href="/admin" aria-current="page">İdarəetmə paneli</a></li>
         <li><a href="/haqqinda">Haqqında</a></li>
       </ul>
@@ -187,7 +188,7 @@
 (function () {
   "use strict";
 
-  const CHANNELS = { chat: "Daxili AI", mask: "Kopyala və yapışdır", extension: "Brauzer əlavəsi" };
+  const CHANNELS = { chat: "Daxili AI", mask: "Kopyala və yapışdır", extension: "Brauzer əlavəsi", redact: "Sənəd süzgəci" };
   const MAIN = [["FIN", "FİN"], ["IBAN", "IBAN"], ["KART", "Kart"], ["TEL", "Telefon"], ["AD", "Ad"]];
   const OTHER = [["ID", "Vəsiqə"], ["VOEN", "VÖEN"], ["EMAIL", "E-poçt"], ["ADRES", "Ünvan"], ["TARIX", "Tarix"]];
   const ALL_CATS = MAIN.concat(OTHER);
@@ -253,7 +254,9 @@
       item.replaceChildren(item.firstChild, document.createTextNode(name + ": " + fmt((s.categories || {})[cat] || 0)));
     });
     const protectedTotal = Object.values(s.categories || {}).reduce((a, b) => a + b, 0);
-    $("totals").replaceChildren(...[["Sorğular", s.requests], ["Qorunan məlumat", protectedTotal], ["Bloklanan sənəd", s.blocked]].map(([name, n]) => {
+    const docs = s.documents || {};
+    $("totals").replaceChildren(...[["Sorğular", s.requests], ["Qorunan məlumat", protectedTotal], ["Bloklanan sənəd", s.blocked],
+      ["Qaralanan fayl", docs.files], ["Qaralanan üz", docs.faces], ["Qaralanan imza", docs.signatures]].map(([name, n]) => {
       const box = el("span"); box.append(el("strong", "", fmt(n)), document.createTextNode(name)); return box;
     }));
     $("updated").textContent = new Date().toLocaleTimeString("az");
