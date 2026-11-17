@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <title>Süzgəc</title>
+  <style>
+    body { width: 320px; margin: 0; padding: 14px; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1b2733; }
+    h1 { margin: 0 0 2px; font-size: 18px; }
+    .sub { margin: 0 0 12px; color: #667085; font-size: 12px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; }
+    .status { padding: 8px 10px; border-radius: 8px; background: #f2f4f7; font-size: 13px; }
+    .status.ok { background: #ecfdf3; color: #067647; }
+    .status.bad { background: #fef3f2; color: #b42318; }
+    input[type=text] { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #d0d5dd; border-radius: 6px; font: inherit; }
+    button { padding: 6px 12px; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; border-radius: 6px; font: inherit; cursor: pointer; }
+    label.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
+    .hint { color: #667085; font-size: 12px; margin-top: 4px; }
+    .msg { font-size: 12px; margin-top: 6px; min-height: 1em; }
+    .msg.bad { color: #b42318; }
+    .count { font-size: 13px; color: #475467; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Süzgəc</h1>
+  <p class="sub">chatgpt.com-a yapışdırılan mətndə şəxsi məlumatları maskalayır</p>
+
+  <div id="server-status" class="status">Server yoxlanılır…</div>
+  <div id="model-status" class="hint"></div>
+
+  <div class="row">
+    <label class="check"><input type="checkbox" id="enabled"> <span>Genişləndirmə aktivdir</span></label>
+  </div>
+
+  <div style="margin-top:10px">
+    <label for="server">Süzgəc serveri (yalnız yerli ünvan)</label>
+    <div class="row" style="margin-top:4px">
+      <input type="text" id="server" spellcheck="false">
+      <button id="save">Saxla</button>
+    </div>
+    <div id="msg" class="msg"></div>
+  </div>
+
+  <label class="check" style="margin-top:6px">
+    <input type="checkbox" id="block">
+    <span>Server əlçatmaz olduqda mətni yapışdırma (təhlükəsizdir).<br><span class="hint">Söndürsəniz, mətn qorunmadan yapışdırılacaq.</span></span>
+  </label>
+
+  <div class="count" id="count"></div>
+
+  <script src="mask-client.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <title>Тесты расширения Süzgəc</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 16px; }
+    .ok { color: #067647; } .fail { color: #b42318; font-weight: 600; }
+    #summary { font-size: 18px; margin: 8px 0; }
+    textarea, #ce, input { display: block; width: 300px; margin: 4px 0; border: 1px solid #ccc; min-height: 24px; }
+    #stage { opacity: .6; }
+  </style>
+</head>
+<body>
+  <h1>Тесты расширения Süzgəc (content.js)</h1>
+  <p>Нужен запущенный сервер Süzgəc и адрес вида http://127.0.0.1:8001/tests/js/extension.test.html, где порт 8001 проксирует
+  /api/* на сервер (см. README, раздел про расширение). Данные синтетические.</p>
+  <div id="summary">Идёт проверка…</div>
+  <ul id="results"></ul>
+
+  <div id="stage">
+    <textarea id="ta"></textarea>
+    <div id="ce" contenteditable="true"></div>
+    <input id="pw" type="password">
+    <div id="plain">не поле ввода</div>
+  </div>
+
+  <script>
+    // --- Подставной chrome: настоящий клиент сервера, но без самого расширения.
+    const listeners = [];
+    const store = { enabled: true, blockOnError: true };
+    window.__mode = "real"; // real | down
+    window.chrome = {
+      runtime: {
+        id: "test-extension",
+        sendMessage: async (msg) => {
+          if (window.__mode === "down") return { ok: false, error: "unreachable" };
+          return SuzgecClient.maskText(msg.text, location.origin);
+        },
+      },
+      storage: {
+        local: { get: (defaults, cb) => cb(Object.assign({}, defaults, store)) },
+        onChanged: { addListener: (fn) => listeners.push(fn) },
+      },
+    };
+    const setSetting = (key, value) => listeners.forEach((fn) => fn({ [key]: { newValue: value } }, "local"));
+  </script>
+  <script src="../../extension/mask-client.js"></script>
+  <script src="../../extension/content.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const ta = $("ta"), ce = $("ce");
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function waitFor(cond, ms = 5000) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) { if (cond()) return true; await wait(25); }
+      return false;
+    }
+
+    // Редактор «как у сайта»: сам разбирает вставку и добавляет абзацы (как ProseMirror).
+    const editorSeen = [];
+    ce.addEventListener("paste", (e) => {
+      e.preventDefault();
+      const t = e.clipboardData.getData("text/plain");
+      editorSeen.push(t);
+      t.split("\n").forEach((line) => { const p = document.createElement("p"); p.textContent = line; ce.appendChild(p); });
+    });
+    // Обработчик «страницы»: видит ли она оригинал вставки.
+    const pageSaw = [];
+    document.addEventListener("paste", (e) => { pageSaw.push(e.clipboardData ? e.clipboardData.getData("text/plain") : ""); });
+
+    const toastBox = () => { const h = document.getElementById("suzgec-toast-host"); return h && h.shadowRoot.querySelector(".box"); };
+    const toastText = () => (toastBox() ? toastBox().textContent : "");
+    const resetToast = () => { const b = toastBox(); if (b) { b.textContent = ""; b.className = "box"; } };
+
+    function pasteInto(el, text, files) {
+      el.focus();
+      const dt = new DataTransfer();
+      if (text) dt.setData("text/plain", text);
+      (files || []).forEach((f) => dt.items.add(f));
+      const ev = new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true });
+      const notPrevented = el.dispatchEvent(ev);
+      return { intercepted: !notPrevented };
+    }
+
+    const results = [];
+    function test(name, fn) { results.push([name, fn]); }
+    function eq(a, b) { const x = JSON.stringify(a), y = JSON.stringify(b); if (x !== y) throw new Error("ожидалось " + y + ", получено " + x); }
+    function truthy(v, msg) { if (!v) throw new Error(msg || "ожидалось истинное значение"); }
+
+    const SECRET_FIN = "5ARZ8D2";
+
+    test("textarea: данные маскируются, уведомление «N məlumat qorundu»", async () => {
+      ta.value = ""; resetToast(); pageSaw.length = 0;
+      const r = pasteInto(ta, "Elvin Məmmədov, FİN " + SECRET_FIN);
+      truthy(r.intercepted, "вставка должна быть перехвачена");
+      truthy(await waitFor(() => ta.value !== ""), "текст не вставлен");
+      eq(ta.value, "[AD_1], FİN [FIN_1]");
+      truthy(await waitFor(() => toastText() !== ""));
+      eq(toastText(), "Süzgəc: 2 məlumat qorundu");
+    });
+
+    test("оригинал не доходит до обработчиков страницы", async () => {
+      // pageSaw заполнялся в предыдущем тесте: оригинальное событие перехвачено до страницы
+      eq(pageSaw.filter((t) => t.includes(SECRET_FIN)), []);
+    });
+
+    test("textarea: вставка в позицию курсора, а не вместо всего текста", async () => {
+      ta.value = "Salam: "; ta.setSelectionRange(7, 7);
+      pasteInto(ta, "FİN " + SECRET_FIN);
+      truthy(await waitFor(() => ta.value.length > 7));
+      eq(ta.value, "Salam: FİN [FIN_1]");
+    });
+
+    test("contenteditable (как у сайта): редактор получает только замаскированный текст, один раз", async () => {
+      ce.innerHTML = ""; editorSeen.length = 0; resetToast();
+      pasteInto(ce, "Salam\nFİN " + SECRET_FIN + "\nTel +994 50 123 45 67");
+      truthy(await waitFor(() => editorSeen.length > 0), "редактор ничего не получил");
+      await wait(200);
+      eq(editorSeen, ["Salam\nFİN [FIN_1]\nTel [TEL_1]"]);
+      truthy(!ce.innerText.includes(SECRET_FIN));
+      truthy(await waitFor(() => toastText() !== ""));
+      eq(toastText(), "Süzgəc: 2 məlumat qorundu");
+    });
+
+    test("обычный текст без данных вставляется как есть, без уведомления", async () => {
+      ta.value = ""; resetToast();
+      pasteInto(ta, "Salam, necəsən?");
+      truthy(await waitFor(() => ta.value !== ""));
+      eq(ta.value, "Salam, necəsən?");
+      await wait(300);
+      eq(toastText(), "");
+    });
+
+    test("только файл/картинка без текста: не вмешиваемся", async () => {
+      const r = pasteInto(ta, "", [new File(["x"], "a.png", { type: "image/png" })]);
+      eq(r.intercepted, false);
+    });
+
+    test("не поле ввода и поле пароля: не вмешиваемся", async () => {
+      eq(pasteInto($("plain"), "FİN " + SECRET_FIN).intercepted, false);
+      eq(pasteInto($("pw"), "FİN " + SECRET_FIN).intercepted, false);
+    });
+
+    test("гриф «Məxfi»: ничего не вставляется, предупреждение", async () => {
+      ta.value = "было"; resetToast();
+      pasteInto(ta, "Məxfi: FİN " + SECRET_FIN);
+      truthy(await waitFor(() => toastText() !== ""));
+      eq(ta.value, "было");
+      truthy(toastText().includes("Məxfi/Gizli"), toastText());
+    });
+
+    test("сервер недоступен (по умолчанию): мягкая блокировка, оригинал не вставляется", async () => {
+      ta.value = "было"; resetToast(); window.__mode = "down";
+      pasteInto(ta, "FİN " + SECRET_FIN);
+      truthy(await waitFor(() => toastText() !== ""));
+      eq(ta.value, "было");
+      truthy(toastText().includes("əlçatmazdır"), toastText());
+    });
+
+    test("сервер недоступен, режим «вставлять как есть»: вставка с предупреждением", async () => {
+      ta.value = ""; resetToast(); window.__mode = "down"; setSetting("blockOnError", false);
+      pasteInto(ta, "FİN " + SECRET_FIN);
+      truthy(await waitFor(() => ta.value !== ""));
+      eq(ta.value, "FİN " + SECRET_FIN);
+      truthy(toastText().includes("qorunmadan"), toastText());
+      setSetting("blockOnError", true); window.__mode = "real";
+    });
+
+    test("гриф блокируется даже в режиме «вставлять как есть»", async () => {
+      ta.value = "было"; resetToast(); window.__mode = "real"; setSetting("blockOnError", false);
+      pasteInto(ta, "Gizli: FİN " + SECRET_FIN);
+      truthy(await waitFor(() => toastText() !== ""));
+      eq(ta.value, "было");
+      setSetting("blockOnError", true);
+    });
+
+    test("расширение выключено: вставка идёт как обычно", async () => {
+      setSetting("enabled", false);
+      eq(pasteInto(ta, "FİN " + SECRET_FIN).intercepted, false);
+      setSetting("enabled", true);
+    });
+
+    test("длинный текст: кусками, метки не повторяются", async () => {
+      ta.value = ""; resetToast();
+      const para = (code) => "FİN " + code + " " + "lorem ipsum ".repeat(200);
+      const text = [para("5ARZ8D2"), para("7K3M9PQ"), para("2BX4T91")].join("\n\n");
+      truthy(text.length > 4500 * 1.5);
+      pasteInto(ta, text);
+      truthy(await waitFor(() => ta.value !== "", 15000), "длинный текст не вставлен");
+      ["5ARZ8D2", "7K3M9PQ", "2BX4T91"].forEach((c) => truthy(!ta.value.includes(c), "утечка " + c));
+      truthy(ta.value.includes("[FIN_1]") && ta.value.includes("[FIN_2]") && ta.value.includes("[FIN_3]"), ta.value.slice(0, 80));
+      truthy(await waitFor(() => toastText() !== ""));
+      eq(toastText(), "Süzgəc: 3 məlumat qorundu");
+    });
+
+    test("splitText: куски склеиваются в исходный текст и не длиннее лимита (в том числе с эмодзи)", async () => {
+      const { splitText } = window.__suzgecTest;
+      const text = ("Salam 😀 dünya. " + "x".repeat(37) + "\n").repeat(400);
+      const chunks = splitText(text, 4500);
+      eq(chunks.join(""), text);
+      truthy(chunks.every((c) => c.length <= 4500), "кусок длиннее лимита");
+      truthy(chunks.length > 1);
+      // нет «обрезанных» суррогатных пар на границах
+      truthy(chunks.every((c) => !/[\ud800-\udbff]$/.test(c)));
+    });
+
+    test("renumber: номера меток сдвигаются между кусками", async () => {
+      const { renumber } = window.__suzgecTest;
+      const offsets = { AD: 2 };
+      eq(renumber("[AD_1] [AD_2] [FIN_1]", offsets), "[AD_3] [AD_4] [FIN_1]");
+      eq(offsets, { AD: 4, FIN: 1 });
+    });
+
+    test("расширение удалено/обновлено: больше не вмешиваемся (самый последний тест)", async () => {
+      window.chrome.runtime.id = undefined;
+      eq(pasteInto(ta, "FİN " + SECRET_FIN).intercepted, false);
+      window.chrome.runtime.id = "test-extension"; // даже если вернулось, слушатель уже снят
+      eq(pasteInto(ta, "FİN " + SECRET_FIN).intercepted, false);
+    });
+
+    (async () => {
+      const ul = $("results"); let failed = 0;
+      for (const [name, fn] of results) {
+        let ok = true, msg = "";
+        try { await fn(); } catch (e) { ok = false; msg = e.message; failed++; }
+        const li = document.createElement("li");
+        li.className = ok ? "ok" : "fail";
+        li.textContent = (ok ? "✓ " : "✗ ") + name + (ok ? "" : " — " + msg);
+        ul.append(li);
+      }
+      $("summary").textContent = failed ? "Провалено: " + failed + " из " + results.length : "Все тесты пройдены: " + results.length;
+      $("summary").className = failed ? "fail" : "ok";
+      document.title = failed ? "FAIL" : "PASS";
+    })();
+  </script>
+</body>
+</html>
