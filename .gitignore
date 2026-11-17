@@ -16,3 +16,6 @@ __pycache__/
 # Временные файлы публичной ссылки (START-DEMO.bat)
 tunnel.log
 demo-link.txt
+
+# Данные для публикации на хостинге (содержат ключи): не коммитить
+deploy-secrets.local.txt
