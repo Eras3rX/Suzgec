@@ -1,0 +1,18 @@
+# Конфиг для хостинга Render (бесплатный тариф). Секреты здесь НЕ хранятся:
+# ANTHROPIC_API_KEY вводится вручную в панели Render (sync: false).
+services:
+  - type: web
+    name: suzgec
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # --proxy-headers: за прокси Render берём настоящий IP клиента (иначе rate limit общий на всех)
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
+    healthCheckPath: /api/stats
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5-5
+      - key: ANTHROPIC_API_KEY
+        sync: false

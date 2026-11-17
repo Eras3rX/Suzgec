@@ -177,3 +177,21 @@ def test_payload_to_anthropic_has_no_data_and_tags_hold(monkeypatch, injection):
 def test_anthropic_sdk_debug_logging_is_off():
     for name in ("anthropic", "httpx", "httpcore"):
         assert logging.getLogger(name).getEffectiveLevel() >= logging.WARNING
+
+
+# ---------- Дневной потолок вызовов AI ----------
+
+
+def test_daily_llm_limit_blocks_real_calls_only(monkeypatch):
+    monkeypatch.setattr(main, "DAILY_LLM_LIMIT", 2)
+    monkeypatch.setitem(main._daily, "day", None)
+    monkeypatch.setattr(main, "ask_llm", lambda text: "ok")
+
+    # Демо-режим (нет ключа): лимит не действует.
+    assert all(client.post("/api/chat", json={"text": "salam"}).status_code == 200 for _ in range(4))
+
+    # С ключом: после двух вызовов — понятный отказ.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    codes = [client.post("/api/chat", json={"text": "salam"}).status_code for _ in range(3)]
+    assert codes == [200, 200, 429]
+    assert "Дневной лимит" in client.post("/api/chat", json={"text": "salam"}).json()["detail"]

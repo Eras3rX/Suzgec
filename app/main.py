@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 
@@ -25,6 +26,8 @@ from app.ratelimit import RateLimiter
 MAX_TEXT_LENGTH = 5000
 MAX_BODY_BYTES = 64 * 1024  # 5000 символов даже с экранированием JSON укладываются с запасом
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
+# Общий дневной потолок настоящих вызовов AI: публичная ссылка не должна сжечь баланс ключа API.
+DAILY_LLM_LIMIT = int(os.getenv("DAILY_LLM_LIMIT", "300"))
 RATE_LIMITED_PATHS = {"/api/check", "/api/chat"}
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -38,6 +41,21 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 _stats_lock = Lock()
 _category_counts: Counter = Counter()
 _totals: Counter = Counter()
+_daily = {"day": None, "count": 0}  # сколько раз сегодня (UTC) звали настоящий AI
+
+
+def _reserve_llm_call() -> bool:
+    """Занять одну из дневных попыток вызова AI. В демо-режиме (без ключа) лимит не нужен."""
+    if is_demo():
+        return True
+    today = datetime.now(timezone.utc).date()
+    with _stats_lock:
+        if _daily["day"] != today:
+            _daily["day"], _daily["count"] = today, 0
+        if _daily["count"] >= DAILY_LLM_LIMIT:
+            return False
+        _daily["count"] += 1
+        return True
 
 
 class TextIn(BaseModel):
@@ -110,6 +128,9 @@ def chat(body: TextIn):
             status_code=403,
             detail="Текст с грифом «Məxfi» / «Gizli» заблокирован и не отправлен в ИИ.",
         )
+
+    if not _reserve_llm_call():
+        raise HTTPException(status_code=429, detail="Дневной лимит демо исчерпан. Попробуйте завтра.")
 
     masked = mask(body.text)  # таблица меток живёт только внутри этого вызова
     try:
