@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Süzgəc — haqqında</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/noto-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/noto-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts/faces.css">
+  <link rel="stylesheet" href="/static/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Əsas məzmuna keç</a>
+
+<header class="site-header">
+  <div class="bar">
+    <a class="brand" href="/">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="19" fill="#ffffff"/>
+        <g fill="#0b2545">
+          <circle cx="12" cy="12" r="2.8"/><circle cx="20" cy="12" r="2.8"/><circle cx="28" cy="12" r="2.8"/>
+          <circle cx="12" cy="20" r="2.8"/><circle cx="28" cy="20" r="2.8"/>
+          <circle cx="12" cy="28" r="2.8"/><circle cx="20" cy="28" r="2.8"/><circle cx="28" cy="28" r="2.8"/>
+        </g>
+        <circle cx="20" cy="20" r="3.4" fill="#0a7a5a"/>
+      </svg>
+      <span><span class="brand-name">Süzgəc</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
+    </a>
+    <nav class="site-nav" aria-label="Əsas naviqasiya">
+      <ul>
+        <li><a href="/">Əsas səhifə</a></li>
+        <li><a href="/admin" target="_blank" rel="noopener">İdarəetmə paneli<span class="visually-hidden"> (yeni vərəqdə açılır)</span></a></li>
+        <li><a href="/haqqinda" aria-current="page">Haqqında</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <div class="page-title">
+    <h1>Süzgəc haqqında</h1>
+    <p>Dövlət qurumları və banklar üçün nəzərdə tutulmuş vasitə: işçi süni intellektdən istifadə edərkən şəxsi məlumatlar xaricə çıxmır.</p>
+  </div>
+
+  <article class="prose">
+    <h2>Süzgəc nədir</h2>
+    <p>Süzgəc işçi ilə süni intellekt xidməti arasında yerləşən filtrdir. İşçi mətni daxil edir, Süzgəc mətndəki şəxsi məlumatları tapır və onları <strong>[AD_1]</strong>, <strong>[FIN_1]</strong> kimi etiketlərlə əvəz edir. Süni intellektə yalnız etiketli mətn göndərilir. Cavab gələndən sonra etiketlər orijinal məlumatlarla əvəz olunur. Rəhbərlik yalnız kateqoriyalar üzrə say göstəricilərini görür, mətnləri yox.</p>
+
+    <h2>Necə işləyir</h2>
+    <ol>
+      <li><strong>Mətni daxil edin.</strong> Süzgəc məlumatları tapır və rəngli etiketlərə çevirir.</li>
+      <li><strong>AI-yə köçürün.</strong> Süzgəcdən keçmiş mətni istədiyiniz süni intellekt xidmətinə yapışdırın. Server API açarı ilə işləyirsə, mətn birbaşa da göndərilə bilər.</li>
+      <li><strong>Cavabı qaytarın.</strong> AI-nin cavabını yapışdırın: etiketlər yerinə qaytarılır. Etiketin yazılışı bir qədər dəyişsə belə, proqram onu tanıyır və xəbərdarlıq göstərir.</li>
+    </ol>
+    <p>Axtarış iki hissədən ibarətdir: qaydalar (nümunələr, yoxlama cəmləri, ad lüğəti) və yerli süni intellekt modeli (adlar, ünvanlar, tarixlər). Model yalnız bu serverdə işləyir, mətn heç bir yerə göndərilmir. Model olmadıqda yalnız qaydalar işləyir.</p>
+
+    <h2>Hansı məlumatlar qorunur</h2>
+    <ul>
+      <li>FİN, şəxsiyyət vəsiqəsinin nömrəsi, VÖEN;</li>
+      <li>IBAN (mod-97 yoxlaması) və bank kartı (Luhn yoxlaması);</li>
+      <li>telefon nömrələri və e-poçt ünvanları;</li>
+      <li>ad, soyad və ata adı;</li>
+      <li>ünvanlar və tarixlər.</li>
+    </ul>
+    <p>Məlumatlar boşluqlarla, defislərlə, nöqtələrlə, sətir keçidləri ilə bölünəndə, oxşar kiril hərfləri və qarışıq registrlə yazılanda da tapılır.</p>
+
+    <h2>Qrifli sənədlər</h2>
+    <p>«Məxfi», «Tam məxfi», «Gizli», «Xidməti istifadə üçün» və «XİÜ» qrifləri olan mətn tam bloklanır: maskalanmır və süni intellektə göndərilmir. İdarəetmə panelində vaxt, qrif kateqoriyası və kanal göstərilən qırmızı kritik bildiriş yaranır. Sənədin mətni heç yerdə saxlanmır.</p>
+
+    <h2>Məxfilik prinsipləri</h2>
+    <ul>
+      <li>Mətn və etiket cədvəli serverdə saxlanmır və qeydə alınmır.</li>
+      <li>Etiket cədvəli yalnız brauzer səhifəsinin yaddaşındadır və səhifə bağlananda silinir.</li>
+      <li>API açarı yalnız serverdə saxlanır.</li>
+      <li>Sorğuların sayı və mətnin uzunluğu məhdudlaşdırılıb, xəta mesajlarında mətn təkrarlanmır.</li>
+      <li>İdarəetmə paneli standart olaraq yalnız serverin işlədiyi kompüterdən, uzaqdan isə token ilə açılır.</li>
+    </ul>
+
+    <h2>Məhdudiyyətlər</h2>
+    <ul>
+      <li>Süzgəc bütün məlumatları tapmağa zəmanət vermir. Tanış olmayan ad, qeyri-adi yazılış və ya sərbəst formada yazılmış məlumat gözdən qaça bilər.</li>
+      <li>Model azərbaycan dilində yazılmış mətn üçün hazırlanıb, rus dilində daha az dəqiqdir. Bütün tarixlər maskalanır, yalnız doğum tarixləri yox.</li>
+      <li>Modelin lisenziyası kommersiya məqsədi ilə istifadəyə icazə vermir (CC BY-NC 4.0).</li>
+      <li>Süni intellekt xidməti yalnız etiketli mətni alır, lakin həmin xidmətin öz şərtləri tətbiq olunur.</li>
+      <li>İstifadəçi girişi və rollar hələ yoxdur: giriş şəbəkə səviyyəsində məhdudlaşdırılmalıdır.</li>
+    </ul>
+  </article>
+</main>
+
+<footer class="site-footer">
+  <div class="bar">
+    <span><strong>Məlumatların qorunması.</strong> Mətnlər serverdə saxlanmır və qeydə alınmır, yalnız say göstəriciləri toplanır.</span>
+    <span>Süzgəc · OYU CyberAI Hackathon 2026</span>
+  </div>
+</footer>
+</body>
+</html>

@@ -100,7 +100,7 @@ def test_rate_limit_returns_429_with_retry_after(monkeypatch):
     r = client.post("/api/chat", json={"text": "salam"})
     assert r.status_code == 429
     assert int(r.headers["retry-after"]) >= 1
-    assert "Слишком много запросов" in r.json()["detail"]
+    assert "Çox sorğu" in r.json()["detail"]
 
 
 def test_rate_limit_does_not_block_stats_page(monkeypatch):
@@ -113,7 +113,7 @@ def test_rate_limit_does_not_block_stats_page(monkeypatch):
 def test_huge_body_rejected_before_parsing():
     r = client.post("/api/chat", content=b"x" * 70_000, headers={"content-type": "application/json"})
     assert r.status_code == 413
-    assert "слишком большой" in r.json()["detail"]
+    assert "çox böyükdür" in r.json()["detail"]
 
 
 # ---------- Prompt injection ----------
@@ -182,7 +182,7 @@ def test_daily_llm_limit_blocks_real_calls_only(ai_on, monkeypatch):
 
     codes = [client.post("/api/chat", json={"text": "salam"}).status_code for _ in range(3)]
     assert codes == [200, 200, 429]
-    assert "Дневной лимит" in client.post("/api/chat", json={"text": "salam"}).json()["detail"]
+    assert "Gündəlik demo limiti" in client.post("/api/chat", json={"text": "salam"}).json()["detail"]
     # Режим «копировать и вставить» AI не вызывает, поэтому лимит его не касается.
     assert client.post("/api/mask", json={"text": "salam"}).status_code == 200
 

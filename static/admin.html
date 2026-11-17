@@ -3,193 +3,159 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Süzgəc — inzibatçı paneli</title>
-  <style>
-    :root {
-      --bg: #f3f5f8; --card: #ffffff; --text: #1b2733; --muted: #667085; --line: #e4e7ec;
-      --crit: #b42318; --crit-bg: #fef3f2; --crit-line: #fda29b; --good: #067647; --good-bg: #ecfdf3; --brand: #1d4ed8;
-      --c-FIN: #fde68a; --c-IBAN: #93c5fd; --c-KART: #f9a8d4; --c-TEL: #86efac; --c-AD: #fca5a5;
-      --c-ID: #fdba74; --c-VOEN: #c4b5fd; --c-EMAIL: #67e8f9; --c-ADRES: #bef264; --c-TARIX: #d6d3d1;
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; }
-    .wrap { max-width: 1040px; margin: 0 auto; padding: 16px; }
-    h1 { margin: 0; font-size: 24px; }
-    h2 { margin: 0 0 8px; font-size: 16px; }
-    .sub { color: var(--muted); margin: 2px 0 12px; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 12px; }
-    .chip { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: #eef2f6; color: var(--muted); vertical-align: middle; margin-left: 8px; font-weight: 400; }
-    .chip.ok { background: var(--good-bg); color: var(--good); }
-    .chip.bad { background: var(--crit-bg); color: var(--crit); }
-    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--good); margin-right: 6px; animation: blink 1.4s ease-in-out infinite; }
-    @keyframes blink { 50% { opacity: .25; } }
-    a { color: var(--brand); }
-
-    /* Qırmızı kritik bildiriş */
-    .alert { background: var(--crit); color: #fff; border-radius: 12px; padding: 16px 18px; margin-top: 12px;
-             box-shadow: 0 6px 24px rgba(180, 35, 24, .35); animation: pulse 1.6s ease-in-out infinite; }
-    .alert .level { font-size: 12px; font-weight: 800; letter-spacing: .12em; background: #fff; color: var(--crit); display: inline-block; padding: 2px 10px; border-radius: 999px; }
-    .alert .title { font-size: 20px; font-weight: 700; margin: 8px 0 4px; }
-    .alert button { margin-top: 12px; padding: 9px 18px; border: 0; border-radius: 8px; background: #fff; color: var(--crit); font: inherit; font-weight: 700; cursor: pointer; }
-    @keyframes pulse { 0%, 100% { box-shadow: 0 6px 24px rgba(180, 35, 24, .35); } 50% { box-shadow: 0 6px 34px rgba(180, 35, 24, .65); } }
-    @media (prefers-reduced-motion: reduce) { .alert, .dot { animation: none; } }
-
-    .banner { border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 14px; }
-    .banner.error { background: var(--crit-bg); color: var(--crit); border: 1px solid var(--crit-line); font-weight: 600; }
-
-    /* Vərəqlər */
-    .tabs { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
-    .tab { padding: 9px 16px; border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0; background: #e9edf3; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
-    .tab.active { background: var(--card); color: var(--text); }
-    .tab .count { background: var(--crit); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 7px; margin-left: 6px; }
-    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 0 10px 10px 10px; padding: 14px; }
-
-    /* Canlı say */
-    .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .tile { border-radius: 10px; padding: 12px 14px; border: 1px solid var(--line); position: relative; overflow: hidden; }
-    .tile .name { font-size: 13px; font-weight: 600; }
-    .tile .num { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
-    .tile .delta { position: absolute; top: 8px; right: 10px; font-size: 12px; font-weight: 700; opacity: 0; transition: opacity .3s; }
-    .tile.bump { animation: bump .9s ease-out; }
-    .tile.bump .delta { opacity: 1; }
-    @keyframes bump { 0% { transform: scale(1.06); box-shadow: 0 0 0 3px rgba(29, 78, 216, .35); } 100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; } }
-    .tile.block { background: var(--crit-bg); border-color: var(--crit-line); color: var(--crit); }
-    .others { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .others span { border-radius: 999px; padding: 4px 12px; font-size: 13px; color: #1b2733; }
-    .totals { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 12px; }
-    .totals b { font-size: 22px; display: block; font-variant-numeric: tabular-nums; }
-    .totals span { color: var(--muted); font-size: 13px; }
-
-    /* Şöbələr */
-    .dept { display: grid; grid-template-columns: 110px 1fr 150px; gap: 10px; align-items: center; margin: 10px 0; font-size: 14px; }
-    .bar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; background: var(--line); }
-    .bar > span { display: block; height: 100%; min-width: 2px; transition: flex-basis .5s; }
-    .bar > span.blocked { background: repeating-linear-gradient(45deg, var(--crit), var(--crit) 6px, #d92d20 6px, #d92d20 12px); }
-    .dept .nums { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .legend span { font-size: 12px; padding: 2px 8px; border-radius: 999px; }
-
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-    td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; font-variant-numeric: tabular-nums; }
-    td.num, th.num { text-align: right; }
-    tr.new td { background: var(--crit-bg); }
-    .badge { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 2px 8px; border-radius: 999px; background: var(--crit); color: #fff; }
-    .note { color: var(--muted); font-size: 13px; }
-    .empty { color: var(--muted); font-style: italic; padding: 8px 0; }
-
-    /* Test */
-    button.primary { padding: 10px 20px; border: 1px solid var(--brand); background: var(--brand); color: #fff; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
-    button.primary:disabled { opacity: .6; cursor: wait; }
-    input[type=password] { padding: 8px 10px; border: 1px solid #d0d5dd; border-radius: 8px; font: inherit; min-width: 220px; }
-    .scroll { overflow-x: auto; }
-
-    @media (max-width: 720px) {
-      .wrap { padding: 12px; }
-      .tiles { grid-template-columns: repeat(2, 1fr); }
-      .dept { grid-template-columns: 80px 1fr; }
-      .dept .nums { grid-column: 1 / -1; }
-    }
-  </style>
+  <title>Süzgəc — idarəetmə paneli</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/noto-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/noto-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts/faces.css">
+  <link rel="stylesheet" href="/static/site.css">
 </head>
 <body>
-<div class="wrap">
-  <h1>Süzgəc · inzibatçı paneli <span id="live" class="chip">qoşulur…</span></h1>
-  <p class="sub">Yalnız rəqəmlər: sənədlərin mətni saxlanmır və göstərilmir. <a href="/">Əsas səhifə</a> · Son yenilənmə: <span id="updated">—</span></p>
+<a class="skip" href="#main">Əsas məzmuna keç</a>
+
+<header class="site-header">
+  <div class="bar">
+    <a class="brand" href="/">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="19" fill="#ffffff"/>
+        <g fill="#0b2545">
+          <circle cx="12" cy="12" r="2.8"/><circle cx="20" cy="12" r="2.8"/><circle cx="28" cy="12" r="2.8"/>
+          <circle cx="12" cy="20" r="2.8"/><circle cx="28" cy="20" r="2.8"/>
+          <circle cx="12" cy="28" r="2.8"/><circle cx="20" cy="28" r="2.8"/><circle cx="28" cy="28" r="2.8"/>
+        </g>
+        <circle cx="20" cy="20" r="3.4" fill="#0a7a5a"/>
+      </svg>
+      <span><span class="brand-name">Süzgəc</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
+    </a>
+    <nav class="site-nav" aria-label="Əsas naviqasiya">
+      <ul>
+        <li><a href="/">Əsas səhifə</a></li>
+        <li><a href="/admin" aria-current="page">İdarəetmə paneli</a></li>
+        <li><a href="/haqqinda">Haqqında</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+<div class="statusbar">
+  <div class="bar">
+    <span id="live" class="status" role="status"><span class="status-dot"></span><span id="live-text">Qoşulur…</span></span>
+    <span>Son yenilənmə: <span id="updated">—</span></span>
+    <span>Yalnız say göstəriciləri: sənədlərin mətni saxlanmır və göstərilmir</span>
+  </div>
+</div>
+
+<main id="main" class="wrap">
+  <div class="page-title">
+    <h1>İdarəetmə paneli</h1>
+    <p>Məlumatların qorunması üzrə canlı göstəricilər, şöbələr üzrə statistika, dəqiqlik testi və qrifli sənədlərin bloklanması haqqında bildirişlər.</p>
+  </div>
 
   <div id="alert" class="alert" role="alert" aria-live="assertive" hidden>
-    <span class="level">KRİTİK</span>
-    <div class="title" id="alert-title"></div>
+    <span class="alert-level">Kritik</span>
+    <div class="alert-title" id="alert-title"></div>
     <div id="alert-meta"></div>
-    <button id="ack">Qəbul etdim</button>
+    <button type="button" class="btn" id="ack">Qəbul etdim</button>
   </div>
 
-  <div id="error" class="banner error" role="alert" hidden></div>
+  <div id="error" class="notice notice-block" role="alert" hidden></div>
 
-  <div id="login" class="card" hidden>
-    <h2>İnzibatçı tokeni lazımdır</h2>
-    <div class="note" style="margin-bottom:8px">Token serverdə ADMIN_TOKEN dəyişəni ilə təyin olunub. Yalnız bu səhifənin yaddaşında saxlanır.</div>
-    <input type="password" id="token" autocomplete="off" placeholder="Token">
-    <button class="primary" id="login-btn">Daxil ol</button>
+  <div id="login" class="notice" hidden>
+    <p class="notice-title">İnzibatçı tokeni lazımdır</p>
+    <p class="small muted">Token serverdə ADMIN_TOKEN dəyişəni ilə təyin olunub. Yalnız bu səhifənin yaddaşında saxlanır.</p>
+    <label for="token">Token</label>
+    <input type="password" id="token" autocomplete="off" style="max-width:320px">
+    <div class="actions"><button type="button" class="btn" id="login-btn">Daxil ol</button></div>
   </div>
 
-  <div class="tabs" role="tablist">
-    <button class="tab active" role="tab" data-tab="live" aria-selected="true">Canlı say</button>
-    <button class="tab" role="tab" data-tab="depts" aria-selected="false">Şöbələr</button>
-    <button class="tab" role="tab" data-tab="test" aria-selected="false">Test</button>
-    <button class="tab" role="tab" data-tab="incidents" aria-selected="false">İnsidentlər <span class="count" id="tab-count" hidden></span></button>
+  <div class="tabs" role="tablist" aria-label="Panel bölmələri">
+    <button type="button" class="tab" role="tab" id="tab-live" data-tab="live" aria-selected="true" aria-controls="panel-live">Canlı say</button>
+    <button type="button" class="tab" role="tab" id="tab-depts" data-tab="depts" aria-selected="false" aria-controls="panel-depts">Şöbələr</button>
+    <button type="button" class="tab" role="tab" id="tab-test" data-tab="test" aria-selected="false" aria-controls="panel-test">Test</button>
+    <button type="button" class="tab" role="tab" id="tab-incidents" data-tab="incidents" aria-selected="false" aria-controls="panel-incidents">İnsidentlər<span class="count" id="tab-count" hidden></span></button>
   </div>
 
   <!-- 1. Canlı say -->
-  <div class="panel" id="panel-live">
-    <h2>Canlı say <span class="note">(səhifəni yeniləmədən, hər 2 saniyədən bir)</span></h2>
-    <div class="tiles" id="tiles"></div>
-    <div class="others" id="others"></div>
-    <div class="totals" id="totals"></div>
-  </div>
+  <section class="tab-panel" id="panel-live" role="tabpanel" aria-labelledby="tab-live">
+    <h2>Canlı say</h2>
+    <p class="small muted" style="margin:4px 0 14px">Səhifəni yeniləmədən, hər 2 saniyədən bir yenilənir.</p>
+    <div class="metrics" id="tiles"></div>
+    <div class="other-list" id="others"></div>
+    <div class="totals-line" id="totals"></div>
+  </section>
 
   <!-- 2. Şöbələr -->
-  <div class="panel" id="panel-depts" hidden>
+  <section class="tab-panel" id="panel-depts" role="tabpanel" aria-labelledby="tab-depts" hidden>
     <h2>Şöbələr üzrə statistika</h2>
-    <div class="note" style="margin-bottom:6px">Hər zolaqda qorunan məlumatlar kateqoriyalar üzrə, qırmızı zolaq isə qrif bloklarıdır. Yalnız saylar.</div>
+    <p class="small muted" style="margin:4px 0 8px">Hər zolaqda qorunan məlumatlar kateqoriyalar üzrə göstərilir, qırmızı hissə qrif bloklarıdır. Yalnız saylar.</p>
     <div id="dept-chart"></div>
-    <div class="legend" id="dept-legend"></div>
-    <div class="scroll" style="margin-top:12px">
-      <table>
+    <div class="legend-row" id="dept-legend"></div>
+    <div class="table-scroll" style="margin-top:16px">
+      <table class="data">
         <thead><tr><th>Şöbə</th><th class="num">Sorğu</th><th class="num">Qorunan məlumat</th><th class="num">Qrif bloku</th></tr></thead>
         <tbody id="dept-rows"></tbody>
       </table>
     </div>
-  </div>
+  </section>
 
   <!-- 3. Test -->
-  <div class="panel" id="panel-test" hidden>
+  <section class="tab-panel" id="panel-test" role="tabpanel" aria-labelledby="tab-test" hidden>
     <h2>Dəqiqlik və sürət testi</h2>
-    <div class="note" style="margin-bottom:10px">Düymə detektoru həqiqətən 100 sintetik cümlə üzərində işə salır və nəticəni indi hesablayır. Əvvəlcədən yazılmış rəqəm yoxdur. Cümlələr və tapılan dəyərlər göstərilmir.</div>
-    <button class="primary" id="run-test">100 sintetik cümlə üzrə test</button>
-    <span id="test-status" class="note" style="margin-left:10px">Hələ işə salınmayıb.</span>
+    <p class="small muted" style="margin:4px 0 14px;max-width:75ch">Düymə detektoru həqiqətən 100 sintetik cümlə üzərində işə salır və nəticəni indi hesablayır. Əvvəlcədən yazılmış rəqəm yoxdur. Cümlələr və tapılan dəyərlər göstərilmir.</p>
+    <div class="actions" style="margin-top:0">
+      <button type="button" class="btn" id="run-test">100 sintetik cümlə üzrə test</button>
+      <span id="test-status" class="muted" role="status">Hələ işə salınmayıb.</span>
+    </div>
 
-    <div class="scroll" style="margin-top:14px">
-      <table>
+    <div class="table-scroll" style="margin-top:18px">
+      <table class="data">
         <thead>
           <tr><th>Rejim</th><th class="num">Precision</th><th class="num">Recall</th><th class="num">F1</th>
               <th class="num">Orta gecikmə</th><th class="num">P95</th><th class="num">Maks</th><th class="num">Yanlış həyəcan</th></tr>
         </thead>
-        <tbody id="test-rows"><tr><td colspan="8" class="empty">—</td></tr></tbody>
+        <tbody id="test-rows"><tr class="empty-row"><td colspan="8" class="empty">—</td></tr></tbody>
       </table>
     </div>
 
-    <h2 style="margin-top:16px">Kateqoriyalar üzrə <span id="cat-mode" class="note"></span></h2>
-    <div class="scroll">
-      <table>
+    <h3 style="margin-top:22px">Kateqoriyalar üzrə <span id="cat-mode" class="muted" style="font-weight:400"></span></h3>
+    <div class="table-scroll" style="margin-top:8px">
+      <table class="data">
         <thead><tr><th>Kateqoriya</th><th class="num">Gözlənilən</th><th class="num">Tapıldı</th><th class="num">Buraxıldı</th><th class="num">Yanlış</th><th class="num">Recall</th><th class="num">Precision</th></tr></thead>
-        <tbody id="cat-rows"><tr><td colspan="7" class="empty">—</td></tr></tbody>
+        <tbody id="cat-rows"><tr class="empty-row"><td colspan="7" class="empty">—</td></tr></tbody>
       </table>
     </div>
-    <div class="note" id="test-meta" style="margin-top:10px"></div>
-  </div>
+    <p class="small muted" id="test-meta" style="margin-top:10px"></p>
+  </section>
 
   <!-- 4. İnsidentlər -->
-  <div class="panel" id="panel-incidents" hidden>
+  <section class="tab-panel" id="panel-incidents" role="tabpanel" aria-labelledby="tab-incidents" hidden>
     <h2>Qrifli sənədlərin bloklanması</h2>
-    <div class="scroll">
-      <table>
+    <div class="table-scroll" style="margin-top:10px">
+      <table class="data">
         <thead><tr><th>Vaxt</th><th>Səviyyə</th><th>Qrif</th><th>Kanal</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
-    <div id="empty" class="empty">Hələ blok olmayıb.</div>
-    <div class="note" style="margin-top:10px">Jurnal yalnız server yaddaşında saxlanır (son 200 qeyd) və server yenidən başladıqda təmizlənir. <span id="by-category"></span></div>
+    <p id="empty" class="empty-text" style="margin-top:8px">Hələ blok olmayıb.</p>
+    <p class="small muted" style="margin-top:10px">Jurnal yalnız server yaddaşında saxlanır (son 200 qeyd) və server yenidən başladıqda təmizlənir. <span id="by-category"></span></p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="bar">
+    <span><strong>Məlumatların qorunması.</strong> Mətnlər serverdə saxlanmır və qeydə alınmır, yalnız say göstəriciləri toplanır.</span>
+    <span>Süzgəc · OYU CyberAI Hackathon 2026</span>
   </div>
-</div>
+</footer>
 
 <script>
+(function () {
+  "use strict";
+
   const CHANNELS = { chat: "Daxili AI", mask: "Kopyala və yapışdır", extension: "Brauzer əlavəsi" };
   const MAIN = [["FIN", "FİN"], ["IBAN", "IBAN"], ["KART", "Kart"], ["TEL", "Telefon"], ["AD", "Ad"]];
   const OTHER = [["ID", "Vəsiqə"], ["VOEN", "VÖEN"], ["EMAIL", "E-poçt"], ["ADRES", "Ünvan"], ["TARIX", "Tarix"]];
   const ALL_CATS = MAIN.concat(OTHER);
   const $ = (id) => document.getElementById(id);
-  const color = (cat) => "var(--c-" + cat + ")";
   const fmt = (n) => Number(n || 0).toLocaleString("az");
 
   let incidents = [], lastId = 0, ackId = 0, token = "";
@@ -204,40 +170,40 @@
   const when = (iso) => new Date(iso).toLocaleString("az");
   const authHeaders = () => (token ? { "X-Admin-Token": token } : {});
 
-  // ---------- Vərəqlər ----------
+  // ---------- Bölmələr ----------
   function selectTab(name) {
-    document.querySelectorAll(".tab").forEach((t) => {
-      const active = t.dataset.tab === name;
-      t.classList.toggle("active", active);
-      t.setAttribute("aria-selected", String(active));
-    });
+    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
     ["live", "depts", "test", "incidents"].forEach((p) => { $("panel-" + p).hidden = p !== name; });
   }
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => selectTab(t.dataset.tab)));
 
   // ---------- 1. Canlı say ----------
-  function buildTiles() {
-    const nodes = MAIN.map(([cat, name]) => tile(cat, name, color(cat), false));
-    nodes.push(tile("BLOCK", "Qrif blokları", null, true));
-    $("tiles").replaceChildren(...nodes);
-    $("others").replaceChildren(...OTHER.map(([cat, name]) => {
-      const chip = el("span", "", name + ": 0"); chip.id = "other-" + cat; chip.style.background = color(cat); return chip;
-    }));
-  }
-  function tile(key, name, bg, block) {
-    const box = el("div", "tile" + (block ? " block" : ""));
+  function metric(key, name, isBlock) {
+    const box = el("div", "metric" + (isBlock ? " metric-block" : ""));
     box.id = "tile-" + key;
-    if (bg) box.style.background = bg;
-    const num = el("div", "num", "—"); num.id = "num-" + key;
-    box.append(el("div", "name", name), num, el("div", "delta", ""));
+    const num = el("span", "num", "—"); num.id = "num-" + key;
+    box.append(el("span", "name", name), num, el("span", "delta", ""));
     return box;
+  }
+  function swatchItem(cat, name, id) {
+    const item = el("span"); if (id) item.id = id;
+    const sw = el("span", "swatch"); sw.dataset.cat = cat;
+    item.append(sw, document.createTextNode(name));
+    return item;
+  }
+  function buildMetrics() {
+    const boxes = MAIN.map(([cat, name]) => metric(cat, name, false));
+    boxes.push(metric("BLOCK", "Qrif blokları", true));
+    $("tiles").replaceChildren(...boxes);
+    $("others").replaceChildren(...OTHER.map(([cat, name]) => swatchItem(cat, name + ": 0", "other-" + cat)));
   }
   function setValue(key, value) {
     const box = $("tile-" + key), num = $("num-" + key);
     if (!box) return;
     if (previous[key] !== undefined && value > previous[key]) {
       box.querySelector(".delta").textContent = "+" + (value - previous[key]);
-      box.classList.remove("bump"); void box.offsetWidth; box.classList.add("bump");
+      box.classList.add("bump");
+      setTimeout(() => { box.classList.remove("bump"); box.querySelector(".delta").textContent = ""; }, 1600);
     }
     previous[key] = value;
     num.textContent = fmt(value);
@@ -245,10 +211,13 @@
   function renderLive(s) {
     MAIN.forEach(([cat]) => setValue(cat, (s.categories || {})[cat] || 0));
     setValue("BLOCK", s.blocked || 0);
-    OTHER.forEach(([cat, name]) => { $("other-" + cat).textContent = name + ": " + fmt((s.categories || {})[cat] || 0); });
+    OTHER.forEach(([cat, name]) => {
+      const item = $("other-" + cat);
+      item.replaceChildren(item.firstChild, document.createTextNode(name + ": " + fmt((s.categories || {})[cat] || 0)));
+    });
     const protectedTotal = Object.values(s.categories || {}).reduce((a, b) => a + b, 0);
     $("totals").replaceChildren(...[["Sorğular", s.requests], ["Qorunan məlumat", protectedTotal], ["Bloklanan sənəd", s.blocked]].map(([name, n]) => {
-      const box = el("div"); box.append(el("b", "", fmt(n)), el("span", "", name)); return box;
+      const box = el("span"); box.append(el("strong", "", fmt(n)), document.createTextNode(name)); return box;
     }));
     $("updated").textContent = new Date().toLocaleTimeString("az");
   }
@@ -257,18 +226,18 @@
   function renderDepts(depts) {
     const max = Math.max(1, ...depts.map((d) => d.protected + d.blocked));
     $("dept-chart").replaceChildren(...depts.map((d) => {
-      const row = el("div", "dept");
-      const bar = el("div", "bar");
+      const row = el("div", "dept-row");
+      const bar = el("div", "dept-bar");
       ALL_CATS.forEach(([cat, name]) => {
         const n = (d.categories || {})[cat] || 0;
         if (!n) return;
-        const seg = el("span"); seg.style.background = color(cat); seg.style.flexBasis = (n / max * 100) + "%";
+        const seg = el("span"); seg.dataset.cat = cat; seg.style.flexBasis = (n / max * 100) + "%";
         seg.title = name + ": " + n; bar.append(seg);
       });
       if (d.blocked) {
-        const seg = el("span", "blocked"); seg.style.flexBasis = (d.blocked / max * 100) + "%"; seg.title = "Qrif blokları: " + d.blocked; bar.append(seg);
+        const seg = el("span", "is-block"); seg.style.flexBasis = (d.blocked / max * 100) + "%"; seg.title = "Qrif blokları: " + d.blocked; bar.append(seg);
       }
-      row.append(el("div", "", d.name), bar, el("div", "nums", fmt(d.protected) + " məlumat · " + fmt(d.blocked) + " blok"));
+      row.append(el("div", "", d.name), bar, el("div", "dept-nums", fmt(d.protected) + " məlumat, " + fmt(d.blocked) + " blok"));
       return row;
     }));
     $("dept-rows").replaceChildren(...depts.map((d) => {
@@ -278,8 +247,9 @@
     }));
   }
   function buildLegend() {
-    const items = ALL_CATS.map(([cat, name]) => { const s = el("span", "", name); s.style.background = color(cat); return s; });
-    const blk = el("span", "", "Qrif blokları"); blk.style.background = "var(--crit)"; blk.style.color = "#fff"; items.push(blk);
+    const items = ALL_CATS.map(([cat, name]) => swatchItem(cat, name));
+    const blk = el("span"); blk.append(el("span", "swatch-red"), document.createTextNode("Qrif blokları"));
+    items.push(blk);
     $("dept-legend").replaceChildren(...items);
   }
 
@@ -288,17 +258,17 @@
     const fresh = incidents.filter((i) => i.id > ackId);
     $("alert").hidden = fresh.length === 0;
     $("tab-count").hidden = fresh.length === 0; $("tab-count").textContent = String(fresh.length);
-    document.title = fresh.length ? "(" + fresh.length + ") KRİTİK · Süzgəc" : "Süzgəc — inzibatçı paneli";
+    document.title = fresh.length ? "(" + fresh.length + ") Kritik · Süzgəc" : "Süzgəc — idarəetmə paneli";
     if (fresh.length) {
       const last = fresh[0];
       $("alert-title").textContent = fresh.length === 1
         ? "Qrifli sənəd göndərmək cəhdi bloklandı: «" + last.category_name + "»"
         : "Qrifli sənəd göndərmək cəhdləri bloklandı: " + fresh.length;
-      $("alert-meta").textContent = "Son: " + when(last.time) + " · qrif «" + last.category_name + "» · " + (CHANNELS[last.channel] || last.channel);
+      $("alert-meta").textContent = "Son cəhd: " + when(last.time) + ". Qrif: «" + last.category_name + "». Kanal: " + (CHANNELS[last.channel] || last.channel) + ".";
     }
     $("rows").replaceChildren(...incidents.map((i) => {
-      const tr = el("tr", i.id > ackId ? "new" : "");
-      const level = el("td"); level.append(el("span", "badge", "KRİTİK"));
+      const tr = el("tr", i.id > ackId ? "is-new" : "");
+      const level = el("td"); level.append(el("span", "sev", "Kritik"));
       tr.append(el("td", "", when(i.time)), level, el("td", "", i.category_name), el("td", "", CHANNELS[i.channel] || i.channel));
       return tr;
     }));
@@ -306,7 +276,10 @@
   }
 
   // ---------- Sorğu dövrü ----------
-  const setLive = (ok, text) => { $("live").replaceChildren(); if (ok) $("live").append(el("span", "dot")); $("live").append(document.createTextNode(text)); $("live").className = "chip " + (ok ? "ok" : "bad"); };
+  function setLive(ok, text) {
+    $("live").className = "status" + (ok ? " status-ready" : "");
+    $("live-text").textContent = text;
+  }
   const showError = (msg) => { $("error").textContent = msg; $("error").hidden = !msg; };
 
   async function get(path) {
@@ -319,12 +292,12 @@
       const [stats, inc] = await Promise.all([get("/api/admin/stats"), get("/api/admin/incidents?since=" + lastId)]);
       const bad = [stats, inc].find((x) => x.status !== 200);
       if (bad) {
-        if (bad.status === 401) { $("login").hidden = false; showError(token ? "Token yanlışdır." : ""); setLive(false, "token lazımdır"); }
-        else if (bad.status === 403) { showError(bad.data.detail || "Giriş qadağandır."); setLive(false, "giriş yoxdur"); }
-        else { showError("Server xətası."); setLive(false, "xəta"); }
+        if (bad.status === 401) { $("login").hidden = false; showError(token ? "Token yanlışdır." : ""); setLive(false, "Token lazımdır"); }
+        else if (bad.status === 403) { showError(bad.data.detail || "Giriş qadağandır."); setLive(false, "Giriş yoxdur"); }
+        else { showError("Server xətası."); setLive(false, "Xəta"); }
         return;
       }
-      $("login").hidden = true; showError(""); setLive(true, "canlı");
+      $("login").hidden = true; showError(""); setLive(true, "Canlı");
       renderLive(stats.data);
       renderDepts(stats.data.departments || []);
       if (inc.data.last_id < lastId) { incidents = []; ackId = 0; lastId = 0; return poll(); }  // server yenidən başlayıb
@@ -332,9 +305,9 @@
       lastId = inc.data.last_id;
       renderIncidents();
       const parts = Object.entries(inc.data.by_category || {}).map(([k, v]) => "«" + k + "»: " + v);
-      $("by-category").textContent = parts.length ? "Qriflər üzrə: " + parts.join(", ") : "";
+      $("by-category").textContent = parts.length ? "Qriflər üzrə: " + parts.join(", ") + "." : "";
     } catch (e) {
-      setLive(false, "bağlantı yoxdur");
+      setLive(false, "Bağlantı yoxdur");
     }
   }
 
@@ -385,9 +358,10 @@
   $("login-btn").addEventListener("click", () => { token = $("token").value; lastId = 0; incidents = []; poll(); });
   $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") $("login-btn").click(); });
 
-  buildTiles(); buildLegend();
+  buildMetrics(); buildLegend();
   poll();
   setInterval(poll, 2000);
+})();
 </script>
 </body>
 </html>

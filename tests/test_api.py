@@ -91,7 +91,7 @@ def test_mask_text_without_data_returns_unchanged():
 def test_chat_without_key_explains_how_to_continue():
     r = client.post("/api/chat", json={"text": TEXT})
     assert r.status_code == 503
-    assert "Копировать и вставить" in r.json()["detail"]
+    assert "yapışdırın" in r.json()["detail"]
     assert "1A2B3C4" not in r.text
 
 
@@ -118,13 +118,13 @@ def test_text_too_long_gives_clear_error():
     for path in ("/api/mask", "/api/chat"):
         r = client.post(path, json={"text": "x" * (MAX_TEXT_LENGTH + 1)})
         assert r.status_code == 413
-        assert "слишком длинный" in r.json()["detail"] and str(MAX_TEXT_LENGTH) in r.json()["detail"]
+        assert "çox uzundur" in r.json()["detail"] and str(MAX_TEXT_LENGTH) in r.json()["detail"]
 
 
 def test_empty_text_gives_clear_error():
     r = client.post("/api/mask", json={"text": ""})
     assert r.status_code == 422
-    assert "не должен быть пустым" in r.json()["detail"]
+    assert "boş ola bilməz" in r.json()["detail"]
 
 
 # ---------- Статистика ----------

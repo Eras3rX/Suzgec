@@ -104,29 +104,29 @@
     var broken = altered.filter(function (a) { return !a.guess; });
     if (fixed.length) {
       warnings.push(
-        "AI изменил запись меток: " +
-          fixed.map(function (a) { return "«" + a.text + "» (→ " + a.guess + ")"; }).join(", ") +
-          ". Данные восстановлены по смыслу, проверьте ответ."
+        "AI etiketlərin yazılışını dəyişib: " +
+          fixed.map(function (a) { return "«" + a.text + "» (" + a.guess + " kimi tanındı)"; }).join(", ") +
+          ". Məlumatlar mənaya görə bərpa olundu, cavabı yoxlayın."
       );
     }
     if (broken.length) {
       warnings.push(
-        "AI изменил метки: " +
+        "AI etiketləri dəyişib: " +
           broken.map(function (a) { return "«" + a.text + "»"; }).join(", ") +
-          ". На их место данные не подставлены."
+          ". Onların yerinə məlumat yazılmayıb."
       );
     }
     if (unknown.length) {
       warnings.push(
-        "В ответе есть метки, которых не было в вашем тексте: " + unknown.join(", ") + ". Они оставлены как есть."
+        "Cavabda sizin mətninizdə olmayan etiketlər var: " + unknown.join(", ") + ". Onlar dəyişdirilmədən saxlanılıb."
       );
     }
     var total = Object.keys(mapping).length;
     if (total > 0 && missing.length === total && !altered.length) {
-      warnings.push("В ответе нет ни одной метки из вашего текста: возможно, AI убрал их или переписал ответ.");
+      warnings.push("Cavabda mətninizdəki etiketlərin heç biri yoxdur: AI onları silib və ya cavabı yenidən yazıb.");
     } else if (missing.length) {
       warnings.push(
-        "В ответе не найдены метки: " + missing.join(", ") + ". Возможно, AI удалил их или не упомянул. Проверьте ответ."
+        "Cavabda bu etiketlər tapılmadı: " + missing.join(", ") + ". AI onları silmiş və ya xatırlamamış ola bilər. Cavabı yoxlayın."
       );
     }
 

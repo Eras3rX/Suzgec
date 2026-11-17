@@ -71,7 +71,7 @@
     test("в ответе нет ни одной метки: отдельное предупреждение", () => {
       const r = restoreAnswer("Всё понятно, спасибо.", MAP);
       eq(r.restored, 0); eq(r.warnings.length, 1);
-      if (!r.warnings[0].includes("нет ни одной метки")) throw new Error(r.warnings[0]);
+      if (!r.warnings[0].includes("heç biri yoxdur")) throw new Error(r.warnings[0]);
     });
 
     test("изменённая метка: регистр, пробелы, дефис, без скобок", () => {
@@ -82,7 +82,7 @@
       eq(r.restored, 4);
       eq(r.text, "Привет Elvin Məmmədov, 1A2B3C4, +994 50 123 45 67 и 1A2B3C4.");
       eq(r.missing, []);
-      if (!r.warnings[0].includes("AI изменил запись меток") || !r.warnings[0].includes("восстановлены по смыслу")) throw new Error(r.warnings[0]);
+      if (!r.warnings[0].includes("yazılışını dəyişib") || !r.warnings[0].includes("mənaya görə bərpa olundu")) throw new Error(r.warnings[0]);
     });
 
     test("искажённая метка не мешает восстановить остальные", () => {
@@ -115,7 +115,7 @@
       const r = restoreAnswer("Привет [AD_1] и [IBAN_7]", MAP);
       eq(r.unknown, ["[IBAN_7]"]);
       if (!r.text.endsWith("[IBAN_7]")) throw new Error(r.text);
-      if (!r.warnings.some((w) => w.includes("которых не было"))) throw new Error(r.warnings.join("|"));
+      if (!r.warnings.some((w) => w.includes("olmayan etiketlər"))) throw new Error(r.warnings.join("|"));
     });
 
     test("обычный текст с похожими словами не считается меткой", () => {

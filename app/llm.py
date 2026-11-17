@@ -47,11 +47,11 @@ def ai_enabled() -> bool:
 
 def ask_llm(masked_text: str) -> str:
     if not ai_enabled():
-        raise LLMError("Встроенный AI не настроен: не задан ключ API.")
+        raise LLMError("Daxili AI quraşdırılmayıb: API açarı təyin edilməyib.")
 
     model = os.getenv("ANTHROPIC_MODEL")
     if not model:
-        raise LLMError("Не задана переменная ANTHROPIC_MODEL в .env")
+        raise LLMError(".env faylında ANTHROPIC_MODEL dəyişəni təyin edilməyib.")
 
     safe_text = _TAG.sub("", masked_text)
     client = anthropic.Anthropic()
@@ -63,5 +63,5 @@ def ask_llm(masked_text: str) -> str:
             messages=[{"role": "user", "content": f"<user_text>\n{safe_text}\n</user_text>"}],
         )
     except anthropic.APIError as exc:
-        raise LLMError("Сервис ИИ сейчас недоступен. Попробуйте ещё раз позже.") from exc
+        raise LLMError("AI xidməti hazırda əlçatmazdır. Bir az sonra yenidən cəhd edin.") from exc
     return "".join(block.text for block in response.content if block.type == "text")

@@ -1,0 +1,7 @@
+Noto Sans and Noto Serif
+Copyright (c) Google LLC and the Noto Project Authors.
+Licensed under the SIL Open Font License, Version 1.1: https://openfontlicense.org
+
+The .woff2 files in this folder are subsets (Latin, Latin Extended-A with the schwa letter, Cyrillic) of the
+fonts served by Google Fonts (https://fonts.google.com/noto). They are hosted here so that pages do not
+contact third-party servers.

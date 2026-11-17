@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hmac
 import logging
+import mimetypes
 import os
 from collections import Counter
 from contextlib import asynccontextmanager
@@ -45,6 +46,8 @@ async def lifespan(_app: FastAPI):
     ml_detector.start_background_load()  # модель грузится в фоне; пока она не готова, работают правила
     yield
 
+
+mimetypes.add_type("font/woff2", ".woff2")  # на Windows этого типа может не быть в реестре
 
 app = FastAPI(title="Süzgəc", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -99,12 +102,12 @@ async def guard(request: Request, call_next):
     if request.method == "POST" and path in RATE_LIMITED_PATHS:
         length = request.headers.get("content-length")
         if length and length.isdigit() and int(length) > MAX_BODY_BYTES:
-            return _error(413, f"Запрос слишком большой. Текст — не более {MAX_TEXT_LENGTH} символов.")
+            return _error(413, f"Sorğu çox böyükdür. Mətn {MAX_TEXT_LENGTH} simvoldan çox olmamalıdır.")
         allowed, retry_after = limiter.allow(request.client.host if request.client else "unknown")
         if not allowed:
             return _error(
                 429,
-                f"Слишком много запросов. Подождите {retry_after} сек. и попробуйте снова.",
+                f"Çox sorğu göndərilib. {retry_after} san. gözləyin və yenidən cəhd edin.",
                 {"Retry-After": str(retry_after)},
             )
     try:
@@ -112,9 +115,11 @@ async def guard(request: Request, call_next):
     except Exception as exc:  # noqa: BLE001
         # Логируем только тип ошибки: ни сообщение, ни трассировка не должны нести текст запроса.
         _log.error("unhandled error: %s", type(exc).__name__)
-        return _error(500, "Внутренняя ошибка сервера. Попробуйте ещё раз.")
+        return _error(500, "Serverdə daxili xəta baş verdi. Yenidən cəhd edin.")
     if path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
+    elif path.startswith("/static/") or path in ("/", "/admin", "/haqqinda"):
+        response.headers["Cache-Control"] = "no-cache"  # браузер перепроверяет файл (ETag), а не показывает устаревший вид
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
@@ -124,16 +129,21 @@ async def validation_handler(request: Request, exc: RequestValidationError):
     # Стандартный ответ FastAPI повторяет введённый текст — здесь этого нет намеренно.
     types = {e.get("type") for e in exc.errors()}
     if "string_too_long" in types:
-        return _error(413, f"Текст слишком длинный: максимум {MAX_TEXT_LENGTH} символов. "
-                           "Сократите его или отправьте по частям.")
+        return _error(413, f"Mətn çox uzundur: maksimum {MAX_TEXT_LENGTH} simvol. "
+                           "Qısaldın və ya hissələrlə göndərin.")
     if "string_too_short" in types:
-        return _error(422, "Введите текст: он не должен быть пустым.")
-    return _error(422, 'Некорректный запрос: ожидается JSON вида {"text": "..."}.')
+        return _error(422, "Mətn daxil edin: sahə boş ola bilməz.")
+    return _error(422, 'Yanlış sorğu: {"text": "..."} formatında JSON gözlənilir.')
 
 
 @app.get("/")
 def index():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/haqqinda")
+def about_page():
+    return FileResponse(STATIC_DIR / "about.html")
 
 
 def _blocked_message(category: str) -> str:
@@ -231,10 +241,10 @@ def chat(body: TextIn, request: Request):
     if not ai_enabled():
         raise HTTPException(
             status_code=503,
-            detail="Встроенный AI не настроен (нет ключа API). Используйте режим «Копировать и вставить».",
+            detail="Daxili AI quraşdırılmayıb (API açarı yoxdur). Mətni kopyalayıb istənilən AI-yə yapışdırın.",
         )
     if not _reserve_llm_call():
-        raise HTTPException(status_code=429, detail="Дневной лимит демо исчерпан. Попробуйте завтра.")
+        raise HTTPException(status_code=429, detail="Gündəlik demo limiti bitib. Sabah yenidən cəhd edin.")
 
     masked = mask(body.text)  # таблица меток живёт только внутри этого вызова
     try:
@@ -257,11 +267,11 @@ def _restore_warnings(info, total: int) -> list[str]:
     """Понятные предупреждения о том, как AI обошёлся с метками (без значений данных)."""
     warnings = []
     if info.fuzzy:
-        warnings.append(f"AI изменил запись меток ({info.fuzzy} шт.): данные восстановлены по смыслу. Проверьте ответ.")
+        warnings.append(f"AI etiketlərin yazılışını dəyişib ({info.fuzzy} ədəd): məlumatlar mənaya görə bərpa olundu. Cavabı yoxlayın.")
     if total and len(info.missing) == total:
-        warnings.append("В ответе нет ни одной метки из вашего текста: AI убрал их или переписал ответ.")
+        warnings.append("Cavabda mətninizdəki etiketlərin heç biri yoxdur: AI onları silib və ya cavabı yenidən yazıb.")
     elif info.missing:
-        warnings.append("В ответе не найдены метки: " + ", ".join(info.missing) + ". Возможно, AI удалил их или не упомянул.")
+        warnings.append("Cavabda bu etiketlər tapılmadı: " + ", ".join(info.missing) + ". AI onları silmiş və ya xatırlamamış ola bilər.")
     return warnings
 
 
@@ -288,11 +298,11 @@ def require_admin(request: Request) -> None:
     if token:
         given = request.headers.get("x-admin-token", "")
         if not hmac.compare_digest(given.encode("utf-8"), token.encode("utf-8")):
-            raise HTTPException(status_code=401, detail="Нужен токен администратора.")
+            raise HTTPException(status_code=401, detail="İnzibatçı tokeni lazımdır.")
     elif (request.client.host if request.client else "") not in _LOCAL_HOSTS:
         raise HTTPException(
             status_code=403,
-            detail="Панель администратора доступна только с этого компьютера. Для удалённого доступа задайте ADMIN_TOKEN.",
+            detail="İdarəetmə paneli yalnız bu kompüterdən açılır. Uzaqdan giriş üçün ADMIN_TOKEN təyin edin.",
         )
 
 

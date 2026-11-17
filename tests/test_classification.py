@@ -230,7 +230,9 @@ def test_admin_page_is_served_with_the_critical_alert():
     r = client.get("/admin")
     assert r.status_code == 200
     html = r.text
-    assert "KRİTİK" in html and 'class="alert"' in html and "#b42318" in html  # красное критическое уведомление
+    css = (main.STATIC_DIR / "site.css").read_text(encoding="utf-8")
+    assert "Kritik" in html and 'class="alert"' in html  # красное критическое уведомление
+    assert "#b42318" in css and ".alert" in css           # его цвет задан в общем стиле
     assert "/api/admin/incidents" in html
 
 

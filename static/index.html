@@ -1,216 +1,196 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="az">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Süzgəc — шлюз защиты данных для AI</title>
-  <style>
-    :root {
-      --bg: #f3f5f8; --card: #ffffff; --text: #1b2733; --muted: #667085; --line: #e4e7ec;
-      --bad: #b42318; --bad-bg: #fef3f2; --good: #067647; --good-bg: #ecfdf3; --brand: #1d4ed8;
-      --warn: #93370d; --warn-bg: #fffaeb; --warn-line: #fedf89;
-      /* цвета категорий: фон подсветки */
-      --c-FIN: #fde68a; --c-ID: #fdba74; --c-VOEN: #c4b5fd; --c-IBAN: #93c5fd;
-      --c-KART: #f9a8d4; --c-TEL: #86efac; --c-EMAIL: #67e8f9; --c-AD: #fca5a5;
-      --c-ADRES: #bef264; --c-TARIX: #d6d3d1;
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
-    h1 { margin: 0; font-size: 26px; }
-    h2 { margin: 0 0 8px; font-size: 16px; }
-    .sub { color: var(--muted); margin: 2px 0 14px; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
-    textarea { width: 100%; min-height: 110px; padding: 10px; font: inherit; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
-    .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; align-items: center; }
-    button { font: inherit; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); cursor: pointer; min-height: 44px; }
-    button.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
-    button.small { min-height: 36px; padding: 6px 12px; font-size: 14px; }
-    button:disabled { opacity: .6; cursor: wait; }
-    .counter { margin-left: auto; color: var(--muted); font-size: 13px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
-    .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; color: #1b2733; }
-    .tabs { display: flex; gap: 6px; margin: 14px 0 0; }
-    .tab { border-radius: 8px 8px 0 0; border-bottom: 0; background: #e9edf3; color: var(--muted); font-weight: 600; flex: 0 1 auto; }
-    .tab.active { background: var(--card); color: var(--text); border-color: var(--line); }
-    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 0 10px 10px 10px; padding: 14px; }
-    .banner { border-radius: 8px; padding: 10px 12px; margin: 12px 0 0; font-size: 14px; }
-    .banner.privacy { background: var(--good-bg); color: var(--good); border: 1px solid #abefc6; margin: 0 0 12px; }
-    .banner.error { background: var(--bad-bg); color: var(--bad); border: 1px solid #fecdca; font-weight: 600; }
-    .banner.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
-    .banner.warn ul { margin: 4px 0 0; padding-left: 20px; }
-    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-    .pane { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--card); }
-    .pane h2.bad { color: var(--bad); }
-    .pane h2.good { color: var(--good); }
-    .pane.bad { border-top: 4px solid var(--bad); }
-    .pane.good { border-top: 4px solid var(--good); }
-    .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 4px; }
-    .out { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.5em; }
-    .placeholder { color: var(--muted); font-style: italic; }
-    mark { border-radius: 4px; padding: 0 3px; color: inherit; }
-    mark sup.src { font-size: 9px; font-weight: 700; margin-left: 2px; padding: 0 3px; border-radius: 3px; color: #fff; vertical-align: super; line-height: 1.1; }
-    sup.src-rule { background: #475467; }
-    sup.src-ai { background: var(--brand); }
-    sup.src-rule-ai { background: #7a5af8; }
-    body.hide-src mark sup.src { display: none; }
-    .chip { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: #eef2f6; color: var(--muted); vertical-align: middle; margin-left: 8px; font-weight: 400; }
-    .chip.ready { background: var(--good-bg); color: var(--good); }
-    .chip.loading { background: var(--warn-bg); color: var(--warn); }
-    .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
-    .chk select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); }
-    mark.alt { background: var(--bad-bg); outline: 1px solid var(--bad); color: var(--bad); }
-    .blocked { background: var(--bad-bg); border: 1px solid #fecdca; color: var(--bad); border-radius: 8px; padding: 12px; font-weight: 600; }
-    .step { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
-    .stat-row { display: grid; grid-template-columns: 120px 1fr 40px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
-    .bar { height: 14px; border-radius: 7px; background: var(--line); overflow: hidden; }
-    .bar > span { display: block; height: 100%; }
-    .stat-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-    .totals { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 8px; }
-    .totals b { font-size: 22px; display: block; }
-    .totals span { color: var(--muted); font-size: 13px; }
-    .note { color: var(--muted); font-size: 13px; }
-    @media (max-width: 720px) {
-      .wrap { padding: 12px; }
-      h1 { font-size: 22px; }
-      .cols { grid-template-columns: 1fr; }
-      .row button { flex: 1 1 100%; }
-      .tabs .tab { flex: 1 1 0; padding: 10px 8px; }
-      .counter { margin-left: 0; flex: 1 1 100%; }
-      .stat-row { grid-template-columns: 90px 1fr 32px; }
-    }
-  </style>
+  <title>Süzgəc — şəxsi məlumatların qorunması</title>
+  <meta name="description" content="Süzgəc mətndəki şəxsi məlumatları süni intellektə göndərilməzdən əvvəl etiketlərlə əvəz edir və cavabda yerinə qaytarır.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/noto-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/noto-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts/faces.css">
+  <link rel="stylesheet" href="/static/site.css">
 </head>
 <body>
-<div class="wrap">
-  <h1>Süzgəc <span id="model-chip" class="chip" title="Локальная AI-модель ищет имена, адреса и даты. Работает только на сервере, текст никуда не отправляется.">AI-модель: …</span></h1>
-  <p class="sub">Замаскируйте персональные данные перед отправкой в AI и верните их на место в ответе.</p>
+<a class="skip" href="#main">Əsas məzmuna keç</a>
 
-  <div class="card">
-    <h2>Ваш текст</h2>
-    <textarea id="text" maxlength="5000" placeholder="Вставьте текст сюда (только синтетические данные)…"></textarea>
-    <div class="row">
-      <button id="example" class="small">Заполнить пример</button>
-      <button id="example-secret" class="small">Пример с грифом «Məxfi»</button>
-      <label class="chk">Отдел (Şöbə):
-        <select id="dept" title="Нужен только для статистики по отделам: учитываются числа, тексты не сохраняются">
-          <option value="">— не выбран —</option>
-          <option value="maliyye">Maliyyə</option>
-          <option value="hr">HR</option>
-          <option value="huquq">Hüquq</option>
-        </select>
-      </label>
-      <label class="chk"><input type="checkbox" id="show-src" checked> показывать, кто нашёл</label>
-      <span class="counter" id="counter">0 / 5000</span>
-    </div>
-    <div class="legend" id="legend" aria-label="Цвета категорий"></div>
-    <div class="note" style="margin-top:8px">Метка у находки: <b>правило</b> — найдено по шаблону или словарю, <b>AI</b> — локальной моделью, <b>оба</b> — совпало.</div>
+<header class="site-header">
+  <div class="bar">
+    <a class="brand" href="/">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="19" fill="#ffffff"/>
+        <g fill="#0b2545">
+          <circle cx="12" cy="12" r="2.8"/><circle cx="20" cy="12" r="2.8"/><circle cx="28" cy="12" r="2.8"/>
+          <circle cx="12" cy="20" r="2.8"/><circle cx="28" cy="20" r="2.8"/>
+          <circle cx="12" cy="28" r="2.8"/><circle cx="20" cy="28" r="2.8"/><circle cx="28" cy="28" r="2.8"/>
+        </g>
+        <circle cx="20" cy="20" r="3.4" fill="#0a7a5a"/>
+      </svg>
+      <span><span class="brand-name">Süzgəc</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
+    </a>
+    <nav class="site-nav" aria-label="Əsas naviqasiya">
+      <ul>
+        <li><a href="/" aria-current="page">Əsas səhifə</a></li>
+        <li><a href="/admin" target="_blank" rel="noopener">İdarəetmə paneli<span class="visually-hidden"> (yeni vərəqdə açılır)</span></a></li>
+        <li><a href="/haqqinda">Haqqında</a></li>
+      </ul>
+    </nav>
   </div>
-
-  <div class="tabs" role="tablist">
-    <button id="tab-paste" class="tab active" role="tab" aria-selected="true">Копировать и вставить</button>
-    <button id="tab-ai" class="tab" role="tab" aria-selected="false" hidden>Встроенный AI</button>
+</header>
+<div class="statusbar">
+  <div class="bar">
+    <span id="model-chip" class="status" role="status"><span class="status-dot"></span><span id="model-text">AI modeli yoxlanılır…</span></span>
+    <span>Mətnlər serverdə saxlanmır</span>
   </div>
-
-  <!-- РЕЖИМ 1: копировать и вставить (без ключа API, AI не вызывается) -->
-  <div id="panel-paste" class="panel">
-    <div class="banner privacy">Таблица меток хранится только в памяти этой вкладки: не на сервере и не в браузере. Закроете или обновите вкладку — она исчезнет.</div>
-
-    <h2>Шаг 1. Замаскируйте текст</h2>
-    <div class="row" style="margin-top:0">
-      <button id="mask" class="primary">Замаскировать</button>
-      <button id="clear">Очистить всё</button>
-    </div>
-    <div id="err-paste" class="banner error" role="alert" hidden></div>
-
-    <div class="cols">
-      <section class="pane bad">
-        <h2 class="bad">Без Süzgəc</h2>
-        <div class="note">Так это ушло бы в AI. Найденные данные подсвечены.</div>
-        <div class="label">Исходный текст <span id="src-summary" style="text-transform:none;letter-spacing:0"></span></div>
-        <div id="raw" class="out"><span class="placeholder">Здесь появится ваш текст.</span></div>
-      </section>
-      <section class="pane good">
-        <h2 class="good">С Süzgəc</h2>
-        <div class="note">Скопируйте этот текст и вставьте в ChatGPT, Claude или другой AI.</div>
-        <div class="label">Замаскированный текст</div>
-        <div id="masked" class="out"><span class="placeholder">Пока ничего не замаскировано.</span></div>
-        <div class="row"><button id="copy-masked" class="small" disabled>Скопировать</button></div>
-      </section>
-    </div>
-
-    <div class="step">
-      <h2>Шаг 2. Вставьте ответ AI</h2>
-      <div class="note" style="margin-bottom:8px">Метки вида [AD_1] должны остаться в ответе без изменений.</div>
-      <textarea id="answer-in" maxlength="20000" placeholder="Вставьте сюда ответ AI…"></textarea>
-      <div class="row">
-        <button id="restore" class="primary">Восстановить данные</button>
-        <button id="sample-answer" class="small">Пример ответа AI</button>
-        <button id="sample-broken" class="small">Пример: AI испортил метку</button>
-      </div>
-      <div id="err-restore" class="banner error" role="alert" hidden></div>
-      <div id="warnings" class="banner warn" hidden></div>
-      <div class="label">Ответ с восстановленными данными</div>
-      <div id="restored" class="out"><span class="placeholder">Результат появится здесь.</span></div>
-      <div class="row"><button id="copy-restored" class="small" disabled>Скопировать</button></div>
-    </div>
-  </div>
-
-  <!-- РЕЖИМ 2: встроенный AI (виден, только если на сервере задан ключ API) -->
-  <div id="panel-ai" class="panel" hidden>
-    <div class="row" style="margin-top:0">
-      <button id="send" class="primary">Отправить в AI через Süzgəc</button>
-    </div>
-    <div id="err-ai" class="banner error" role="alert" hidden></div>
-    <div id="ai-warnings" class="banner warn" hidden></div>
-    <div class="cols">
-      <section class="pane bad">
-        <h2 class="bad">Без Süzgəc</h2>
-        <div class="note">Так это ушло бы в AI. Найденные данные подсвечены.</div>
-        <div class="label">Исходный текст <span id="ai-src-summary" style="text-transform:none;letter-spacing:0"></span></div>
-        <div id="ai-raw" class="out"><span class="placeholder">Здесь появится ваш текст.</span></div>
-      </section>
-      <section class="pane good">
-        <h2 class="good">С Süzgəc</h2>
-        <div class="note">В AI уходит только замаскированный текст.</div>
-        <div class="label">Что реально получает AI</div>
-        <div id="ai-masked" class="out"><span class="placeholder">Пока ничего не отправлено.</span></div>
-        <div class="label">Ответ AI с восстановленными данными</div>
-        <div id="ai-answer" class="out"><span class="placeholder">Ответ появится здесь.</span></div>
-      </section>
-    </div>
-  </div>
-
-  <section class="card" style="margin-top:12px">
-    <h2>Статистика сессии</h2>
-    <div class="note" style="margin-bottom:10px">Только счётчики по категориям. Тексты не сохраняются и не показываются.</div>
-    <div id="totals" class="totals"></div>
-    <div id="stats"></div>
-    <div class="note" style="margin-top:10px"><a href="/admin" target="_blank" rel="noopener">Панель администратора ↗</a> (открывается в отдельной вкладке): живые счётчики, статистика по отделам, тест точности и уведомления о блокировках по грифу. Доступна только с этого компьютера.</div>
-  </section>
 </div>
+
+<main id="main" class="wrap">
+  <noscript><div class="notice notice-warn"><p>Bu səhifə JavaScript tələb edir.</p></div></noscript>
+
+  <section class="intro">
+    <h1>Şəxsi məlumatları qoruyaraq süni intellektdən istifadə edin</h1>
+    <p>Süzgəc mətndəki şəxsi məlumatları (FİN, IBAN, bank kartı, telefon, ad, ünvan və s.) süni intellektə göndərilməzdən əvvəl etiketlərlə əvəz edir, cavab gələndən sonra isə onları yerinə qaytarır.</p>
+  </section>
+
+  <ol class="steps">
+    <!-- 1-ci addım -->
+    <li class="step" id="step1">
+      <div class="step-no" aria-hidden="true">1</div>
+      <div>
+        <h2>Mətni daxil edin</h2>
+        <p class="step-hint">Qorunmalı məlumatları ehtiva edən mətni yazın və ya yapışdırın. Sınaq üçün aşağıdakı nümunədən istifadə edə bilərsiniz.</p>
+
+        <label for="text">Mətn</label>
+        <textarea id="text" maxlength="5000" rows="6" spellcheck="false"></textarea>
+        <div class="field-row">
+          <div>
+            <label for="dept">Şöbə <span class="muted" style="font-weight:400">(yalnız statistika üçün)</span></label>
+            <select id="dept">
+              <option value="">Seçilməyib</option>
+              <option value="maliyye">Maliyyə</option>
+              <option value="hr">HR</option>
+              <option value="huquq">Hüquq</option>
+            </select>
+          </div>
+          <span class="counter" id="counter">0 / 5000 simvol</span>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" id="mask">Süzgəcdən keçir</button>
+          <button type="button" class="link-btn" id="example">Nümunə mətn</button>
+          <button type="button" class="link-btn" id="example-secret">Qrifli nümunə</button>
+          <button type="button" class="link-btn" id="clear">Təmizlə</button>
+        </div>
+        <div id="err-text" class="notice notice-block" role="alert" hidden></div>
+
+        <div id="result" hidden>
+          <h3 style="margin-top:22px">Süzgəcdən keçmiş mətn</h3>
+          <div id="blocked" hidden></div>
+          <div id="stage-wrap">
+            <div id="stage" class="doc" aria-live="polite"></div>
+            <p class="summary" id="summary"></p>
+            <details class="disclosure" id="found-box">
+              <summary>Tapılan məlumatlar</summary>
+              <div class="table-scroll">
+                <table class="data">
+                  <thead><tr><th>Etiket</th><th>Kateqoriya</th><th>Tapan</th></tr></thead>
+                  <tbody id="found-rows"></tbody>
+                </table>
+              </div>
+              <p class="small muted" style="margin-top:8px">Orijinal dəyərlər burada göstərilmir.</p>
+            </details>
+          </div>
+        </div>
+      </div>
+    </li>
+
+    <!-- 2-ci addım -->
+    <li class="step locked" id="step2">
+      <div class="step-no" aria-hidden="true">2</div>
+      <div>
+        <h2>AI-yə köçürün</h2>
+        <p class="step-hint">Süzgəcdən keçmiş mətni kopyalayın və istifadə etdiyiniz süni intellekt xidmətinə (ChatGPT, Claude və s.) yapışdırın. AI yalnız etiketləri görəcək.</p>
+        <div class="actions" style="margin-top:0">
+          <button type="button" class="btn" id="copy-masked" disabled>Mətni kopyala</button>
+          <button type="button" class="btn btn-secondary" id="send" hidden>Daxili AI-yə göndər</button>
+        </div>
+        <div id="err-send" class="notice notice-block" role="alert" hidden></div>
+        <p class="small muted" id="send-hint" hidden style="margin-top:10px">Daxili AI serverdə quraşdırılıb: mətn süzgəcdən keçirildikdən sonra birbaşa göndərilir, cavab avtomatik bərpa olunur.</p>
+      </div>
+    </li>
+
+    <!-- 3-cü addım -->
+    <li class="step locked" id="step3">
+      <div class="step-no" aria-hidden="true">3</div>
+      <div>
+        <h2>Cavabı qaytarın</h2>
+        <p class="step-hint">AI-nin cavabını aşağıya yapışdırın. Etiketlər orijinal məlumatlarla əvəz olunacaq. AI etiketin yazılışını bir qədər dəyişsə də, proqram onu tanıyır və xəbərdarlıq göstərir.</p>
+        <label for="answer-in">AI cavabı</label>
+        <textarea id="answer-in" maxlength="20000" rows="5" spellcheck="false"></textarea>
+        <div class="actions">
+          <button type="button" class="btn" id="restore">Məlumatları bərpa et</button>
+          <button type="button" class="link-btn" id="sample-answer">Nümunə cavab</button>
+          <button type="button" class="link-btn" id="sample-broken">Pozulmuş etiketli nümunə</button>
+        </div>
+        <div id="err-restore" class="notice notice-block" role="alert" hidden></div>
+        <div id="warnings" class="notice notice-warn" hidden></div>
+
+        <h3 style="margin-top:22px">Bərpa olunmuş cavab</h3>
+        <div id="restored" class="doc empty" style="margin-top:8px">Cavab burada görünəcək.</div>
+        <div class="actions"><button type="button" class="btn btn-secondary" id="copy-restored" disabled>Cavabı kopyala</button></div>
+        <p class="privacy-note">Etiket cədvəli yalnız bu səhifənin yaddaşında saxlanılır: nə serverdə, nə də brauzerdə yazılmır. Səhifəni bağladıqda və ya yenilədikdə silinir.</p>
+      </div>
+    </li>
+  </ol>
+
+  <details class="disclosure" style="margin-top:22px">
+    <summary>Sessiya statistikası</summary>
+    <p class="small muted" style="margin:6px 0 10px">Yalnız say göstəriciləri: mətnlər və məlumat dəyərləri saxlanmır.</p>
+    <div id="totals" class="totals-line"></div>
+    <div class="table-scroll" style="margin-top:12px">
+      <table class="data">
+        <thead><tr><th>Kateqoriya</th><th class="num">Say</th></tr></thead>
+        <tbody id="stats"></tbody>
+      </table>
+    </div>
+    <p class="small muted" id="sources" style="margin-top:8px"></p>
+  </details>
+</main>
+
+<footer class="site-footer">
+  <div class="bar">
+    <span><strong>Məlumatların qorunması.</strong> Mətnlər serverdə saxlanmır və qeydə alınmır, yalnız say göstəriciləri toplanır.</span>
+    <span>Süzgəc · OYU CyberAI Hackathon 2026</span>
+  </div>
+</footer>
 
 <script src="/static/restore.js"></script>
 <script>
-  const LABELS = { FIN: "FİN", ID: "Удостоверение", VOEN: "VÖEN", IBAN: "IBAN", KART: "Банковская карта", TEL: "Телефон", EMAIL: "Email", AD: "ФИО", ADRES: "Адрес", TARIX: "Дата" };
-  const SRC_SHORT = { rule: "правило", ai: "AI", "rule+ai": "оба" };
-  const SRC_TITLE = { rule: "Нашло правило", ai: "Нашла AI-модель", "rule+ai": "Нашли и правило, и AI-модель" };
-  const MAX_LEN = 5000;
+(function () {
+  "use strict";
 
-  const SAMPLE = "Salam! Mən Elvin Məmmədov. FİN kodum 1A2B3C4, vəsiqə nömrəm AZE04512367. " +
-    "Telefon: +994 50 123 45 67, e-poçt: elvin.test@example.az. " +
-    "Maaşım AZ21NABZ00000000137010001944 hesabına köçürülsün, kart 4111 1111 1111 1111. " +
-    "Помоги составить официальное письмо в банк с просьбой пересмотреть лимит по карте.";
-  const SAMPLE_SECRET = "Məxfi. Daxili sənəd: əməkdaş Elvin Məmmədov, FİN 1A2B3C4. " +
-    "Помоги переписать этот отчёт короче.";
+  const MAX_LEN = 5000;
+  const LABELS = {
+    FIN: "FİN", ID: "Şəxsiyyət vəsiqəsi", VOEN: "VÖEN", IBAN: "IBAN", KART: "Bank kartı", TEL: "Telefon",
+    EMAIL: "E-poçt", AD: "Ad, soyad", ADRES: "Ünvan", TARIX: "Tarix",
+  };
+  const SOURCES = { rule: "Qayda", ai: "AI modeli", "rule+ai": "Qayda və AI" };
+  const SAMPLE =
+    "Salam! Mən Aytac Hüseynova. FİN kodum 5ARZ8D2, vəsiqə nömrəm AZE04512367. " +
+    "Telefon: +994 50 123 45 67, e-poçt: aytac.test@example.az. " +
+    "Ünvan: Bakı şəhəri, Nizami küçəsi 45, mənzil 12. Doğum tarixi: 12.05.1990. " +
+    "IBAN: AZ21NABZ00000000137010001944, kart: 4111 1111 1111 1111. " +
+    "Bankın rəsmi müraciətinə cavab yazmağa kömək edin.";
+  const SAMPLE_SECRET = "Məxfi. Daxili sənəd: əməkdaş Elvin Məmmədov, FİN 5ARZ8D2. Mətni qısaldın.";
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const $ = (id) => document.getElementById(id);
 
   // Единственное место, где живёт таблица меток: переменная в памяти этой вкладки.
-  // Не localStorage, не куки, не сервер. Исчезает при закрытии/обновлении вкладки.
-  let session = null; // { mapping: {"[AD_1]": "Elvin Məmmədov", ...} }
+  // Не localStorage, не куки, не сервер. Исчезает при закрытии или обновлении вкладки.
+  let session = null; // { mapping, text }
   let lastMasked = "";
   let lastRestored = "";
-
-  const $ = (id) => document.getElementById(id);
+  let timers = [];
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -218,217 +198,215 @@
     if (text !== undefined) node.textContent = text;
     return node;
   }
-  function setPlaceholder(node, text) { node.replaceChildren(el("span", "placeholder", text)); }
-  function colorOf(cat) { return "var(--c-" + cat + ")"; }
-  function mark(text, cat, title, source) {
-    const m = el("mark", "", text);
-    m.style.background = colorOf(cat);
-    m.title = (title || LABELS[cat] || cat) + (source ? " · " + SRC_TITLE[source] : "");
-    if (source && SRC_SHORT[source]) m.append(el("sup", "src src-" + source.replace("+", "-"), SRC_SHORT[source]));
-    return m;
-  }
-
-  // Сколько находок дали правила, AI и оба вместе.
-  function summarize(findings) {
-    const n = { rule: 0, ai: 0, "rule+ai": 0 };
-    findings.forEach((f) => { if (f.source in n) n[f.source]++; });
-    if (!findings.length) return "";
-    return "(правила: " + n.rule + ", AI: " + n.ai + ", оба: " + n["rule+ai"] + ")";
-  }
   function showMsg(id, msg) { $(id).textContent = msg; $(id).hidden = !msg; }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
 
-  // Сообщение о блокировке по грифу (текст сообщения приходит от сервера на азербайджанском, без текста документа).
+  function setSteps() {
+    const unlocked = !!session;
+    $("step2").classList.toggle("locked", !unlocked);
+    $("step3").classList.toggle("locked", !unlocked);
+    $("copy-masked").disabled = !unlocked;
+  }
+
+  // Сообщение о блокировке по грифу (текст приходит от сервера на азербайджанском, без текста документа).
   function blockedBox(message) {
-    const box = el("div", "blocked");
-    box.append(el("div", "", "⛔ Sorğu bloklandı"), el("div", "", message || "Mətn qrif səbəbindən bloklandı."));
+    const box = el("div", "notice notice-block");
+    box.append(el("p", "notice-title", "Sorğu bloklandı"), el("p", "", message || "Mətn qrif səbəbindən bloklandı."));
     return box;
   }
 
-  // Легенда цветов
-  for (const [cat, name] of Object.entries(LABELS)) {
-    const t = el("span", "tag", name);
-    t.style.background = colorOf(cat);
-    $("legend").append(t);
-  }
-
-  // Исходный текст с подсветкой. Позиции от сервера — в символах Unicode (кодовых точках).
-  function renderHighlighted(node, text, findings, summaryId) {
-    if (summaryId) $(summaryId).textContent = summarize(findings);
-    const chars = Array.from(text);
-    const parts = [];
-    let pos = 0;
-    for (const f of findings) {
-      if (f.start > pos) parts.push(chars.slice(pos, f.start).join(""));
-      parts.push(mark(chars.slice(f.start, f.end).join(""), f.category, null, f.source));
-      pos = f.end;
-    }
-    parts.push(chars.slice(pos).join(""));
-    node.replaceChildren(...parts);
-  }
-
-  // Замаскированный текст: метки вида [AD_1] красим цветом категории.
-  function renderMasked(node, text) {
-    const parts = text.split(/(\[[A-Z]+_\d+\])/).map((chunk) => {
-      const m = chunk.match(/^\[([A-Z]+)_\d+\]$/);
-      return m && LABELS[m[1]] ? mark(chunk, m[1]) : chunk;
-    });
-    node.replaceChildren(...parts);
-  }
-
   async function postJson(url, text) {
-    // Отдел идёт вместе с запросом только ради статистики (числа по отделам в панели администратора).
+    // Şöbə sorğu ilə yalnız statistika üçün göndərilir (idarəetmə panelində şöbələr üzrə saylar).
     const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, department: $("dept").value || null }) });
     let data = {};
-    try { data = await r.json(); } catch (e) { /* пустой ответ */ }
+    try { data = await r.json(); } catch (e) { /* boş cavab */ }
     return { ok: r.ok, status: r.status, data };
   }
 
-  // ---------- Копирование (работает и по http в локальной сети, где нет navigator.clipboard) ----------
+  // ---------- Kopyalama (http üzərindən yerli şəbəkədə navigator.clipboard olmur: ehtiyat üsul var) ----------
   async function copyText(text, button) {
     const original = button.textContent;
     let ok = false;
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        ok = true;
-      }
-    } catch (e) { /* пробуем запасной способ */ }
+      if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; }
+    } catch (e) { /* ehtiyat üsulu */ }
     if (!ok) {
       const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.setAttribute("readonly", "");
+      ta.value = text; ta.setAttribute("readonly", "");
       ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
-      document.body.appendChild(ta);
-      ta.select();
-      ta.setSelectionRange(0, text.length);
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
       try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
       ta.remove();
     }
-    button.textContent = ok ? "Скопировано ✓" : "Не удалось: выделите и скопируйте вручную";
-    setTimeout(() => { button.textContent = original; }, 2000);
+    button.textContent = ok ? "Kopyalandı" : "Alınmadı: mətni əl ilə seçib kopyalayın";
+    setTimeout(() => { button.textContent = original; }, 2200);
   }
 
-  // ---------- Статистика ----------
-  async function loadStats() {
-    try {
-      const s = await (await fetch("/api/stats")).json();
-      const cats = s.categories || {};
-      const total = Object.values(cats).reduce((a, b) => a + b, 0);
-      $("totals").replaceChildren(
-        ...[["Запросов", s.requests || 0], ["Данных защищено", total], ["Заблокировано", s.blocked || 0]].map(([name, n]) => {
-          const box = el("div"); box.append(el("b", "", String(n)), el("span", "", name)); return box;
-        })
-      );
-      const max = Math.max(1, ...Object.values(cats));
-      const rows = Object.keys(LABELS).filter((c) => cats[c]).map((c) => {
-        const row = el("div", "stat-row");
-        const bar = el("div", "bar"); const fill = el("span"); fill.style.width = (cats[c] / max * 100) + "%"; fill.style.background = colorOf(c); bar.append(fill);
-        row.append(el("span", "", LABELS[c]), bar, el("span", "stat-num", String(cats[c])));
-        return row;
-      });
-      const src = s.sources || {};
-      if (rows.length) {
-        rows.push(el("div", "note", "Кто находил: правила — " + (src.rule || 0) + ", AI — " + (src.ai || 0) + ", оба — " + (src["rule+ai"] || 0)));
-      }
-      $("stats").replaceChildren(...(rows.length ? rows : [el("span", "placeholder", "Пока ничего не защищено.")]));
-    } catch (e) { /* статистика необязательна для работы страницы */ }
+  // ---------- Əsas an: mətn «süzgəcdən keçir», məlumatlar rəngli etiketlərə çevrilir ----------
+  function playFilter(text, spans) {
+    const stage = $("stage");
+    const chars = Array.from(text); // server mövqeləri Unicode simvolları ilə sayır
+    const frags = [];
+    const nodes = [];
+    let pos = 0;
+    spans.forEach((s) => {
+      if (s.start > pos) nodes.push(chars.slice(pos, s.start).join(""));
+      const f = el("span", "frag", chars.slice(s.start, s.end).join(""));
+      f.dataset.cat = s.category;
+      nodes.push(f);
+      frags.push({ node: f, label: s.label, cat: s.category });
+      pos = s.end;
+    });
+    nodes.push(chars.slice(pos).join(""));
+    stage.classList.remove("empty");
+    stage.replaceChildren(...nodes);
+
+    const settle = (f, animate) => {
+      f.node.className = "chip" + (animate ? " settle" : "");
+      f.node.textContent = f.label;
+    };
+    if (reduceMotion || frags.length === 0) {   // hərəkət yoxdur: nəticə dərhal
+      frags.forEach((f) => settle(f, false));
+      return;
+    }
+
+    stage.setAttribute("aria-busy", "true");
+    const height = stage.scrollHeight;
+    const sieve = el("div", "sieve");
+    stage.prepend(sieve);
+    const duration = Math.min(1800, Math.max(900, 500 + height * 2));
+    const travel = Math.max(0, height - 20);
+    requestAnimationFrame(() => {
+      sieve.style.transition = "transform " + duration + "ms linear";
+      sieve.style.transform = "translateY(" + travel + "px)";
+    });
+    frags.forEach((f) => {
+      const y = f.node.offsetTop + f.node.offsetHeight / 2;
+      timers.push(setTimeout(() => settle(f, true), Math.min(duration, (y / Math.max(height, 1)) * duration + f.node.offsetLeft / 40)));
+    });
+    timers.push(setTimeout(() => { sieve.remove(); stage.removeAttribute("aria-busy"); }, duration + 250));
   }
 
-  function inputText() {
-    const text = $("text").value;
-    return text.trim() ? text : null;
+  function showResult(text, data) {
+    $("blocked").hidden = true;
+    $("stage-wrap").hidden = false;
+    $("result").hidden = false;
+
+    const total = data.spans.length;
+    const parts = Object.entries(data.found || {}).map(([cat, n]) => (LABELS[cat] || cat) + ": " + n);
+    const summary = $("summary");
+    summary.replaceChildren();
+    if (total) {
+      summary.append(el("span", "ok", total + " məlumat qorundu"), document.createTextNode(" (" + parts.join(", ") + ")"));
+    } else {
+      summary.textContent = "Mətndə qorunmalı məlumat tapılmadı: mətn dəyişdirilməyib.";
+    }
+
+    const seen = new Set();
+    const rows = [];
+    data.spans.forEach((s) => {
+      if (seen.has(s.label)) return;
+      seen.add(s.label);
+      const tr = el("tr");
+      const chip = el("span", "chip", s.label); chip.dataset.cat = s.category;
+      const first = el("td"); first.append(chip);
+      tr.append(first, el("td", "", LABELS[s.category] || s.category), el("td", "", SOURCES[s.source] || s.source));
+      rows.push(tr);
+    });
+    $("found-rows").replaceChildren(...rows);
+    $("found-box").hidden = rows.length === 0;
+    playFilter(text, data.spans);
   }
 
-  // ---------- Режим 1: копировать и вставить ----------
-  function resetStep2() {
+  function showBlocked(message) {
+    clearTimers();
+    $("result").hidden = false;
+    $("stage-wrap").hidden = true;
+    $("blocked").replaceChildren(blockedBox(message));
+    $("blocked").hidden = false;
+  }
+
+  function resetStep3() {
     $("answer-in").value = "";
     lastRestored = "";
-    showMsg("err-restore", "");
+    showMsg("err-restore", ""); showMsg("err-send", "");
     $("warnings").hidden = true;
-    setPlaceholder($("restored"), "Результат появится здесь.");
+    $("restored").className = "doc empty";
+    $("restored").textContent = "Cavab burada görünəcək.";
     $("copy-restored").disabled = true;
   }
 
-  function clearAll() {
-    session = null;
-    lastMasked = "";
-    $("text").value = "";
-    updateCounter();
-    showMsg("err-paste", "");
-    setPlaceholder($("raw"), "Здесь появится ваш текст.");
-    setPlaceholder($("masked"), "Пока ничего не замаскировано.");
-    $("copy-masked").disabled = true;
-    resetStep2();
-  }
-
   async function doMask() {
-    const text = inputText();
-    showMsg("err-paste", "");
-    if (!text) { showMsg("err-paste", "Введите текст или нажмите «Заполнить пример»."); return; }
+    const text = $("text").value;
+    clearTimers();
+    showMsg("err-text", "");
+    if (!text.trim()) { showMsg("err-text", "Mətn daxil edin və ya «Nümunə mətn» düyməsini seçin."); return null; }
     $("mask").disabled = true;
     try {
       const r = await postJson("/api/mask", text);
-      session = null;
-      lastMasked = "";
-      $("copy-masked").disabled = true;
-      resetStep2();
-      if (r.status === 403) {
-        renderHighlighted($("raw"), text, [], "src-summary");
-        $("masked").replaceChildren(blockedBox(r.data.detail));
-        return;
-      }
-      if (!r.ok) { showMsg("err-paste", r.data.detail || "Ошибка сервера."); return; }
-      // Таблицу меток строим здесь, из текста, который уже у пользователя. Сервер значений не возвращает.
-      session = { mapping: Suzgec.buildMapping(text, r.data.spans) };
+      session = null; lastMasked = "";
+      resetStep3();
+      if (r.status === 403) { showBlocked(r.data.detail); setSteps(); return null; }
+      if (!r.ok) { showMsg("err-text", r.data.detail || "Server xətası."); setSteps(); return null; }
+      // Etiket cədvəlini burada qururuq: serverə yazılmır, dəyərləri server qaytarmır.
+      session = { mapping: Suzgec.buildMapping(text, r.data.spans), text };
       lastMasked = r.data.masked_text;
-      renderHighlighted($("raw"), text, r.data.spans, "src-summary");
-      renderMasked($("masked"), lastMasked);
-      $("copy-masked").disabled = false;
+      showResult(text, r.data);
+      setSteps();
+      return session;
     } catch (e) {
-      showMsg("err-paste", "Не удалось связаться с сервером. Он запущен?");
+      showMsg("err-text", "Serverlə əlaqə qurulmadı. Server işləyirmi?");
+      return null;
     } finally {
       $("mask").disabled = false;
       loadStats();
     }
   }
 
+  // ---------- 3-cü addım: cavabın bərpası ----------
+  function showWarnings(list) {
+    if (!list.length) { $("warnings").hidden = true; return; }
+    const ul = el("ul");
+    list.forEach((w) => ul.append(el("li", "", w)));
+    $("warnings").replaceChildren(el("p", "notice-title", "Cavabı yoxlayın"), ul);
+    $("warnings").hidden = false;
+  }
+
   function doRestore() {
     showMsg("err-restore", "");
     $("warnings").hidden = true;
-    if (!session) { showMsg("err-restore", "Сначала замаскируйте текст (шаг 1): без него неизвестно, что на что менять."); return; }
+    if (!session) { showMsg("err-restore", "Əvvəlcə 1-ci addımda mətni süzgəcdən keçirin: onsuz etiketlərin nəyi əvəz etdiyi bilinmir."); return; }
     const answer = $("answer-in").value;
-    if (!answer.trim()) { showMsg("err-restore", "Вставьте ответ AI в поле выше."); return; }
+    if (!answer.trim()) { showMsg("err-restore", "AI cavabını yuxarıdakı sahəyə yapışdırın."); return; }
 
     const res = Suzgec.restoreAnswer(answer, session.mapping);
     const nodes = res.parts.map((p) => {
-      if (p.type === "value") return mark(p.text, p.category, "Восстановлено вместо " + p.label + (p.fuzzy ? " (AI исказил метку)" : ""));
+      if (p.type === "value") {
+        const v = el("span", "val", p.text); v.dataset.cat = p.category;
+        v.title = p.label + " yerinə bərpa olundu" + (p.fuzzy ? " (AI etiketi dəyişmişdi)" : "");
+        return v;
+      }
       if (p.type === "altered" || p.type === "unknown") {
-        const m = el("mark", "alt", p.text);
-        m.title = p.type === "altered" ? "Метка изменена" : "Метки не было в вашем тексте";
-        return m;
+        const v = el("span", "val-warn", p.text);
+        v.title = p.type === "altered" ? "Etiket dəyişdirilib" : "Bu etiket sizin mətnində yoxdur";
+        return v;
       }
       return p.text;
     });
+    $("restored").className = "doc";
     $("restored").replaceChildren(...nodes);
     lastRestored = res.text;
     $("copy-restored").disabled = false;
-
-    if (res.warnings.length) {
-      const list = el("ul");
-      res.warnings.forEach((w) => list.append(el("li", "", w)));
-      $("warnings").replaceChildren(el("b", "", "Проверьте ответ:"), list);
-      $("warnings").hidden = false;
-    }
+    showWarnings(res.warnings);
   }
 
   function sampleReply(broken) {
-    if (!session) { showMsg("err-restore", "Сначала замаскируйте текст (шаг 1)."); return; }
-    // Пример ответа AI, в котором встречаются все метки из вашего текста.
+    if (!session) { showMsg("err-restore", "Əvvəlcə 1-ci addımda mətni süzgəcdən keçirin."); return; }
     const labels = Object.keys(session.mapping);
-    const facts = labels.map((l) => (LABELS[l.slice(1, l.indexOf("_"))] || "данные") + " " + l);
-    let t = "Здравствуйте! Мы получили ваше обращение. Проверили указанные данные: " + facts.join("; ") + ". Ответим в течение дня.";
+    const facts = labels.map((l) => (LABELS[l.slice(1, l.indexOf("_"))] || "məlumat") + " " + l);
+    let t = "Salam! Müraciətinizi aldıq. Göstərilən məlumatları yoxladıq: " + facts.join("; ") + ". Cavabımız bir gün ərzində veriləcək.";
     if (broken && labels.length) {
-      // Портим две метки и теряем третью, чтобы показать предупреждения.
+      // İki etiketi korlayırıq, üçüncünü itiririk: xəbərdarlıqları göstərmək üçün.
       t = t.replace(labels[0], labels[0].toLowerCase().replace("_", " "));
       if (labels[1]) t = t.replace(labels[1], labels[1].slice(1, -1));
       if (labels[2]) t = t.replace(labels[2], "");
@@ -437,99 +415,97 @@
     showMsg("err-restore", "");
   }
 
-  // ---------- Режим 2: встроенный AI ----------
+  // ---------- Daxili AI (yalnız serverdə API açarı varsa) ----------
   async function sendToAi() {
-    const text = inputText();
-    showMsg("err-ai", "");
-    $("ai-warnings").hidden = true;
-    if (!text) { showMsg("err-ai", "Введите текст или нажмите «Заполнить пример»."); return; }
+    const text = $("text").value;
+    showMsg("err-send", "");
+    if (!session || session.text !== text) { const s = await doMask(); if (!s) return; }
     $("send").disabled = true;
-    setPlaceholder($("ai-masked"), "Обрабатываю…");
-    setPlaceholder($("ai-answer"), "…");
+    const original = $("send").textContent;
+    $("send").textContent = "AI cavabı gözlənilir…";
     try {
-      const check = await postJson("/api/check", text);
-      if (!check.ok) { showMsg("err-ai", check.data.detail || "Ошибка проверки текста."); return; }
-      renderHighlighted($("ai-raw"), text, check.data.findings, "ai-src-summary");
-
-      const chat = await postJson("/api/chat", text);
-      if (chat.status === 403) {
-        $("ai-masked").replaceChildren(blockedBox(chat.data.detail));
-        setPlaceholder($("ai-answer"), "Ответа нет: запрос не отправлялся.");
-      } else if (!chat.ok) {
-        showMsg("err-ai", chat.data.detail || "Ошибка сервера.");
-        setPlaceholder($("ai-masked"), "Не удалось отправить.");
-        setPlaceholder($("ai-answer"), "—");
-      } else {
-        renderMasked($("ai-masked"), chat.data.masked_text);
-        $("ai-answer").textContent = chat.data.answer;
-        const warnings = chat.data.warnings || [];
-        if (warnings.length) {
-          const list = el("ul");
-          warnings.forEach((w) => list.append(el("li", "", w)));
-          $("ai-warnings").replaceChildren(el("b", "", "Проверьте ответ:"), list);
-          $("ai-warnings").hidden = false;
-        }
-      }
+      const r = await postJson("/api/chat", text);
+      if (r.status === 403) { showBlocked(r.data.detail); return; }
+      if (!r.ok) { showMsg("err-send", r.data.detail || "Server xətası."); return; }
+      $("answer-in").value = "";
+      $("restored").className = "doc";
+      $("restored").textContent = r.data.answer;
+      lastRestored = r.data.answer;
+      $("copy-restored").disabled = false;
+      showWarnings(r.data.warnings || []);
+      $("restored").scrollIntoView({ block: "nearest" });
     } catch (e) {
-      showMsg("err-ai", "Не удалось связаться с сервером. Он запущен?");
-      setPlaceholder($("ai-masked"), "—");
-      setPlaceholder($("ai-answer"), "—");
+      showMsg("err-send", "Serverlə əlaqə qurulmadı. Server işləyirmi?");
     } finally {
       $("send").disabled = false;
+      $("send").textContent = original;
       loadStats();
     }
   }
 
-  // ---------- Вкладки ----------
-  function selectTab(name) {
-    const paste = name === "paste";
-    $("tab-paste").classList.toggle("active", paste);
-    $("tab-ai").classList.toggle("active", !paste);
-    $("tab-paste").setAttribute("aria-selected", String(paste));
-    $("tab-ai").setAttribute("aria-selected", String(!paste));
-    $("panel-paste").hidden = !paste;
-    $("panel-ai").hidden = paste;
+  // ---------- Statistika ----------
+  async function loadStats() {
+    try {
+      const s = await (await fetch("/api/stats")).json();
+      const cats = s.categories || {};
+      const total = Object.values(cats).reduce((a, b) => a + b, 0);
+      $("totals").replaceChildren(...[["Sorğular", s.requests || 0], ["Qorunan məlumat", total], ["Bloklanan", s.blocked || 0]].map(([name, n]) => {
+        const box = el("span"); box.append(el("strong", "", String(n)), document.createTextNode(name)); return box;
+      }));
+      const rows = Object.keys(LABELS).filter((c) => cats[c]).map((c) => {
+        const tr = el("tr");
+        const first = el("td"); const sw = el("span", "swatch"); sw.dataset.cat = c; first.append(sw, document.createTextNode(LABELS[c]));
+        tr.append(first, el("td", "num", String(cats[c])));
+        return tr;
+      });
+      const empty = el("tr", "empty-row"); const cell = el("td", "", "Hələ heç nə qorunmayıb."); cell.colSpan = 2; empty.append(cell);
+      $("stats").replaceChildren(...(rows.length ? rows : [empty]));
+      const src = s.sources || {};
+      $("sources").textContent = rows.length ? "Tapan: qayda " + (src.rule || 0) + ", AI modeli " + (src.ai || 0) + ", hər ikisi " + (src["rule+ai"] || 0) + "." : "";
+    } catch (e) { /* statistika səhifənin işləməsi üçün vacib deyil */ }
   }
 
-  function updateCounter() { $("counter").textContent = $("text").value.length + " / " + MAX_LEN; }
+  function updateCounter() { $("counter").textContent = $("text").value.length + " / " + MAX_LEN + " simvol"; }
 
-  $("tab-paste").addEventListener("click", () => selectTab("paste"));
-  $("tab-ai").addEventListener("click", () => selectTab("ai"));
+  // ---------- AI modelinin vəziyyəti ----------
+  const MODEL = {
+    ready: ["AI modeli: hazırdır", "status-ready"],
+    loading: ["AI modeli: yüklənir…", "status-loading"],
+    off: ["AI modeli söndürülüb: yalnız qaydalar işləyir", ""],
+    unavailable: ["AI modeli əlçatmazdır: yalnız qaydalar işləyir", ""],
+  };
+  async function loadConfig() {
+    try {
+      const c = await (await fetch("/api/config")).json();
+      if (c.ai_available) { $("send").hidden = false; $("send-hint").hidden = false; }
+      const [text, cls] = MODEL[c.model] || MODEL.off;
+      $("model-text").textContent = text;
+      $("model-chip").className = "status" + (cls ? " " + cls : "");
+      if (c.model === "loading") setTimeout(loadConfig, 3000);
+    } catch (e) { $("model-text").textContent = "AI modelinin vəziyyəti məlum deyil"; }
+  }
+
   $("mask").addEventListener("click", doMask);
-  $("clear").addEventListener("click", clearAll);
+  $("clear").addEventListener("click", () => {
+    clearTimers(); session = null; lastMasked = "";
+    $("text").value = ""; updateCounter(); showMsg("err-text", "");
+    $("result").hidden = true; resetStep3(); setSteps();
+  });
   $("restore").addEventListener("click", doRestore);
   $("sample-answer").addEventListener("click", () => sampleReply(false));
   $("sample-broken").addEventListener("click", () => sampleReply(true));
   $("copy-masked").addEventListener("click", () => copyText(lastMasked, $("copy-masked")));
   $("copy-restored").addEventListener("click", () => copyText(lastRestored, $("copy-restored")));
   $("send").addEventListener("click", sendToAi);
-  $("example").addEventListener("click", () => { $("text").value = SAMPLE; updateCounter(); });
-  $("example-secret").addEventListener("click", () => { $("text").value = SAMPLE_SECRET; updateCounter(); });
+  $("example").addEventListener("click", () => { $("text").value = SAMPLE; updateCounter(); $("text").focus(); });
+  $("example-secret").addEventListener("click", () => { $("text").value = SAMPLE_SECRET; updateCounter(); $("text").focus(); });
   $("text").addEventListener("input", updateCounter);
+
   updateCounter();
+  setSteps();
   loadStats();
-
-  $("show-src").addEventListener("change", () => document.body.classList.toggle("hide-src", !$("show-src").checked));
-
-  // Статус локальной AI-модели (пока грузится, спрашиваем раз в 3 секунды).
-  const MODEL_TEXT = {
-    ready: ["AI-модель: готова", "ready"],
-    loading: ["AI-модель: загружается…", "loading"],
-    off: ["AI-модель: выключена, только правила", ""],
-    unavailable: ["AI-модель: недоступна, только правила", ""],
-  };
-  async function loadConfig() {
-    try {
-      const c = await (await fetch("/api/config")).json();
-      // Встроенный AI показываем, только если на сервере задан ключ API.
-      if (c.ai_available) $("tab-ai").hidden = false;
-      const [text, cls] = MODEL_TEXT[c.model] || MODEL_TEXT.off;
-      $("model-chip").textContent = text;
-      $("model-chip").className = "chip" + (cls ? " " + cls : "");
-      if (c.model === "loading") setTimeout(loadConfig, 3000);
-    } catch (e) { $("model-chip").textContent = "AI-модель: неизвестно"; }
-  }
   loadConfig();
+})();
 </script>
 </body>
 </html>

@@ -134,7 +134,7 @@ def test_end_to_end_with_ai_that_rewrites_labels_like_ad1(monkeypatch):
     """AI ответил «Ad1, Ad2, Ad3» вместо [AD_1]…: имена всё равно возвращаются, пользователь видит предупреждение."""
     body, _ = run_chat(monkeypatch, RU, "В списке 3 человека: Ad1, Ad2, Ad3")
     assert body["answer"] == "В списке 3 человека: " + ALL
-    assert len(body["warnings"]) == 1 and "изменил запись меток" in body["warnings"][0]
+    assert len(body["warnings"]) == 1 and "yazılışını dəyişib" in body["warnings"][0]
 
 
 def test_end_to_end_warns_when_ai_drops_labels(monkeypatch):
@@ -145,7 +145,7 @@ def test_end_to_end_warns_when_ai_drops_labels(monkeypatch):
 
 def test_end_to_end_warns_when_no_labels_at_all(monkeypatch):
     body, _ = run_chat(monkeypatch, RU, "В списке три человека.")
-    assert "нет ни одной метки" in body["warnings"][0]
+    assert "heç biri yoxdur" in body["warnings"][0]
 
 
 def test_warnings_never_contain_original_values(monkeypatch):
@@ -200,4 +200,4 @@ def test_end_to_end_lowercase_request_and_ad1_ad2_ad3_answer(monkeypatch):
         assert word not in received[0].replace("siyahı", "").replace("neçə", ""), word
     assert received[0] == "siyahıda neçə nəfər? siyahı: [AD_1], [AD_2], [AD_3]"
     assert body["answer"] == "siyahıda 3 nəfər var, bunlar " + ", ".join(LOWER_NAMES)
-    assert len(body["warnings"]) == 1 and "изменил запись меток" in body["warnings"][0]
+    assert len(body["warnings"]) == 1 and "yazılışını dəyişib" in body["warnings"][0]
