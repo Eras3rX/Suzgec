@@ -30,7 +30,7 @@ from app.detector import SOURCE_AI, Finding
 
 load_dotenv()
 
-_log = logging.getLogger("suzgec.ml")
+_log = logging.getLogger("siftguard.ml")
 
 DEFAULT_MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / "pii-ner-azerbaijani-v4"
 

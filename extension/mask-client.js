@@ -1,5 +1,5 @@
 /*
- * Клиент локального сервера Süzgəc. Общий для фонового скрипта расширения и для тестов.
+ * Клиент локального сервера SiftGuard. Общий для фонового скрипта расширения и для тестов.
  *
  * Правила приватности:
  *  - текст отправляется ТОЛЬКО на адрес из loopback (127.0.0.1 / localhost / [::1]);
@@ -49,8 +49,8 @@
     try {
       var r = await request(server, "/api/mask", {
         method: "POST",
-        // X-Suzgec-Client: чтобы в панели администратора был виден канал «расширение» (текст не передаётся)
-        headers: { "Content-Type": "application/json", "X-Suzgec-Client": "extension" },
+        // X-SiftGuard-Client: чтобы в панели администратора был виден канал «расширение» (текст не передаётся)
+        headers: { "Content-Type": "application/json", "X-SiftGuard-Client": "extension" },
         body: JSON.stringify({ text: text, department: department || null }),
       });
       if (r.status === 403) {
@@ -77,7 +77,7 @@
     try {
       var r = await request(server, "/api/redact", {
         method: "POST",
-        headers: { "Content-Type": "application/octet-stream", "X-Suzgec-Client": "extension", "X-Department": department || "" },
+        headers: { "Content-Type": "application/octet-stream", "X-SiftGuard-Client": "extension", "X-Department": department || "" },
         body: bytes,
       }, REDACT_TIMEOUT_MS);
       if (r.status === 403) {
@@ -112,5 +112,5 @@
     }
   }
 
-  root.SuzgecClient = { DEFAULTS: DEFAULTS, isLoopback: isLoopback, maskText: maskText, redactFile: redactFile, status: status };
+  root.SiftGuardClient = { DEFAULTS: DEFAULTS, isLoopback: isLoopback, maskText: maskText, redactFile: redactFile, status: status };
 })(typeof self !== "undefined" ? self : this);

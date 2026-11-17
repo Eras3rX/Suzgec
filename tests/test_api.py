@@ -13,7 +13,7 @@ TEXT = "Mən Elvin Məmmədov, FİN 1A2B3C4, tel +994 50 123 45 67"
 
 def test_index_page_and_script_served():
     r = client.get("/")
-    assert r.status_code == 200 and "Süzgəc" in r.text
+    assert r.status_code == 200 and "SiftGuard" in r.text
     assert client.get("/static/restore.js").status_code == 200
 
 

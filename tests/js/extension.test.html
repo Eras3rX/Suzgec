@@ -2,7 +2,7 @@
 <html lang="az">
 <head>
   <meta charset="UTF-8">
-  <title>Тесты расширения Süzgəc</title>
+  <title>Тесты расширения SiftGuard</title>
   <style>
     body { font-family: system-ui, sans-serif; padding: 16px; }
     .ok { color: #067647; } .fail { color: #b42318; font-weight: 600; }
@@ -12,8 +12,8 @@
   </style>
 </head>
 <body>
-  <h1>Тесты расширения Süzgəc (content.js)</h1>
-  <p>Нужен запущенный сервер Süzgəc и адрес вида http://127.0.0.1:8001/tests/js/extension.test.html, где порт 8001 проксирует
+  <h1>Тесты расширения SiftGuard (content.js)</h1>
+  <p>Нужен запущенный сервер SiftGuard и адрес вида http://127.0.0.1:8001/tests/js/extension.test.html, где порт 8001 проксирует
   /api/* на сервер (см. README, раздел про расширение). Данные синтетические.</p>
   <div id="summary">Идёт проверка…</div>
   <ul id="results"></ul>
@@ -32,6 +32,7 @@
     const listeners = [];
     const store = { enabled: true, blockOnError: true };
     window.__mode = "real"; // real | down
+    window.__siftguardQuiet = true; // без приветственного уведомления: оно мешало бы проверкам текста уведомлений
     window.chrome = {
       runtime: {
         id: "test-extension",
@@ -40,9 +41,9 @@
           if (msg.type === "redact") {
             const bin = atob(msg.data);
             const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-            return SuzgecClient.redactFile(bytes, location.origin);
+            return SiftGuardClient.redactFile(bytes, location.origin);
           }
-          return SuzgecClient.maskText(msg.text, location.origin);
+          return SiftGuardClient.maskText(msg.text, location.origin);
         },
       },
       storage: {
@@ -97,7 +98,7 @@
     }
     const CARD = ["Soyadi: Quliyeva", "Adi: Aysel", "FIN: 5ARZ8D2", "Telefon: +994 50 123 45 67"];
 
-    const toastBox = () => { const h = document.getElementById("suzgec-toast-host"); return h && h.shadowRoot.querySelector(".box"); };
+    const toastBox = () => { const h = document.getElementById("siftguard-toast-host"); return h && h.shadowRoot.querySelector(".box"); };
     const toastText = () => (toastBox() ? toastBox().textContent : "");
     const resetToast = () => { const b = toastBox(); if (b) { b.textContent = ""; b.className = "box"; } };
 
@@ -125,7 +126,7 @@
       truthy(await waitFor(() => ta.value !== ""), "текст не вставлен");
       eq(ta.value, "[AD_1], FİN [FIN_1]");
       truthy(await waitFor(() => toastText() !== ""));
-      eq(toastText(), "Süzgəc: 2 məlumat qorundu");
+      eq(toastText(), "SiftGuard: 2 məlumat qorundu");
     });
 
     test("оригинал не доходит до обработчиков страницы", async () => {
@@ -148,7 +149,7 @@
       eq(editorSeen, ["Salam\nFİN [FIN_1]\nTel [TEL_1]"]);
       truthy(!ce.innerText.includes(SECRET_FIN));
       truthy(await waitFor(() => toastText() !== ""));
-      eq(toastText(), "Süzgəc: 2 məlumat qorundu");
+      eq(toastText(), "SiftGuard: 2 məlumat qorundu");
     });
 
     test("обычный текст без данных вставляется как есть, без уведомления", async () => {
@@ -166,7 +167,7 @@
     });
 
     test("isCandidate: картинки и PDF по типу и по имени, остальное нет", async () => {
-      const { isCandidate } = window.__suzgecTest;
+      const { isCandidate } = window.__siftguardTest;
       truthy(isCandidate(new File(["x"], "a.png", { type: "image/png" })));
       truthy(isCandidate(new File(["x"], "scan.PDF", { type: "" })));
       truthy(isCandidate(new File(["x"], "foto.heic", { type: "" })));
@@ -332,11 +333,11 @@
       ["5ARZ8D2", "7K3M9PQ", "2BX4T91"].forEach((c) => truthy(!ta.value.includes(c), "утечка " + c));
       truthy(ta.value.includes("[FIN_1]") && ta.value.includes("[FIN_2]") && ta.value.includes("[FIN_3]"), ta.value.slice(0, 80));
       truthy(await waitFor(() => toastText() !== ""));
-      eq(toastText(), "Süzgəc: 3 məlumat qorundu");
+      eq(toastText(), "SiftGuard: 3 məlumat qorundu");
     });
 
     test("splitText: куски склеиваются в исходный текст и не длиннее лимита (в том числе с эмодзи)", async () => {
-      const { splitText } = window.__suzgecTest;
+      const { splitText } = window.__siftguardTest;
       const text = ("Salam 😀 dünya. " + "x".repeat(37) + "\n").repeat(400);
       const chunks = splitText(text, 4500);
       eq(chunks.join(""), text);
@@ -347,7 +348,7 @@
     });
 
     test("renumber: номера меток сдвигаются между кусками", async () => {
-      const { renumber } = window.__suzgecTest;
+      const { renumber } = window.__siftguardTest;
       const offsets = { AD: 2 };
       eq(renumber("[AD_1] [AD_2] [FIN_1]", offsets), "[AD_3] [AD_4] [FIN_1]");
       eq(offsets, { AD: 4, FIN: 1 });

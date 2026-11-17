@@ -6,7 +6,7 @@
 importScripts("mask-client.js");
 
 async function settings() {
-  return chrome.storage.local.get(SuzgecClient.DEFAULTS);
+  return chrome.storage.local.get(SiftGuardClient.DEFAULTS);
 }
 
 async function countProtected(count) {
@@ -17,7 +17,7 @@ async function countProtected(count) {
 async function handle(msg) {
   var s = await settings();
   if (msg && msg.type === "mask" && typeof msg.text === "string") {
-    var result = await SuzgecClient.maskText(msg.text, s.server, s.department);
+    var result = await SiftGuardClient.maskText(msg.text, s.server, s.department);
     if (result.ok) await countProtected(result.count);
     return result;
   }
@@ -25,7 +25,7 @@ async function handle(msg) {
     var bin = atob(msg.data);
     var bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    var file = await SuzgecClient.redactFile(bytes, s.server, s.department);
+    var file = await SiftGuardClient.redactFile(bytes, s.server, s.department);
     if (file.ok) {
       var total = Object.keys(file.counts).reduce(function (sum, k) { return sum + file.counts[k]; }, 0);
       await countProtected(total);
@@ -33,7 +33,7 @@ async function handle(msg) {
     return file;
   }
   if (msg && msg.type === "status") {
-    return SuzgecClient.status(s.server);
+    return SiftGuardClient.status(s.server);
   }
   return { ok: false, error: "bad_request" };
 }

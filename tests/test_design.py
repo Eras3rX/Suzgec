@@ -134,7 +134,10 @@ def test_fonts_and_pages_are_served_by_the_app():
     r = client.get("/static/fonts/noto-sans-latin.woff2")
     assert r.status_code == 200 and r.headers["content-type"].startswith("font/woff2") and r.content[:4] == b"wOF2"
     assert client.get("/static/site.css").headers["content-type"].startswith("text/css")
-    assert client.get("/static/favicon.svg").status_code == 200
+    for asset in ("/static/brand/mark-32.png", "/static/brand/mark-64.png", "/static/brand/mark-180.png",
+                  "/static/brand/siftguard-wordmark.png"):
+        response = client.get(asset)
+        assert response.status_code == 200 and response.content[:8] == b"\x89PNG\r\n\x1a\n", asset
     for path in ("/", "/admin", "/haqqinda"):
         assert client.get(path).status_code == 200
 
@@ -165,8 +168,8 @@ def test_every_page_has_the_official_structure(name, current):
     assert html.count("<h1") == 1
     assert 'class="skip" href="#main"' in html and 'id="main"' in html
     assert '<link rel="stylesheet" href="/static/fonts/faces.css">' in html and 'href="/static/site.css"' in html
-    assert 'rel="icon" href="/static/favicon.svg"' in html
-    assert '<header class="site-header">' in html and "<svg" in html and "Süzgəc" in html  # шапка, логотип-знак, название
+    assert 'rel="icon" href="/static/brand/mark-32.png"' in html and 'rel="apple-touch-icon"' in html
+    assert '<header class="site-header">' in html and 'class="brand-mark"' in html and "SiftGuard" in html  # шапка, логотип-знак, название
     nav = html.split('aria-label="Əsas naviqasiya"')[1].split("</nav>")[0]
     for title in PAGES.values():
         assert title in nav
@@ -184,7 +187,7 @@ def test_home_has_the_three_numbered_steps_in_azerbaijani():
     for title in ("Mətni daxil edin", "AI-yə köçürün", "Cavabı qaytarın"):
         assert f"<h2>{title}</h2>" in html
     assert [m for m in re.findall(r'class="step-no" aria-hidden="true">(\d)<', html)] == ["1", "2", "3"]
-    assert "Süzgəcdən keçir" in html and 'class="sieve"' not in html  # «сито» создаётся скриптом, не лежит в разметке
+    assert "Mətni qoru" in html and 'class="sieve"' not in html  # «сито» создаётся скриптом, не лежит в разметке
 
 
 def strip_comments(text: str) -> str:

@@ -181,8 +181,8 @@ def test_incident_has_time_category_and_channel_but_no_text(boom, caplog):
 def test_channels_are_distinguished(ai_on, boom):
     client.post("/api/mask", json={"text": DOC})
     client.post("/api/chat", json={"text": DOC})
-    client.post("/api/mask", json={"text": DOC}, headers={"X-Suzgec-Client": "extension"})
-    client.post("/api/mask", json={"text": DOC}, headers={"X-Suzgec-Client": "evil<script>"})  # мусор игнорируем
+    client.post("/api/mask", json={"text": DOC}, headers={"X-SiftGuard-Client": "extension"})
+    client.post("/api/mask", json={"text": DOC}, headers={"X-SiftGuard-Client": "evil<script>"})  # мусор игнорируем
     channels = [i["channel"] for i in reversed(incidents_json()["incidents"])]
     assert channels == ["mask", "chat", "extension", "mask"]
 

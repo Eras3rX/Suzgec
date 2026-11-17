@@ -61,7 +61,7 @@ def test_log_records_categories_channel_and_department(isolated_audit):
 
 
 def test_extension_channel(isolated_audit):
-    client.post("/api/mask", json={"text": TEXT}, headers={"X-Suzgec-Client": "extension"})
+    client.post("/api/mask", json={"text": TEXT}, headers={"X-SiftGuard-Client": "extension"})
     assert {json.loads(l)["channel"] for l in log_text(isolated_audit).splitlines()} == {"extension"}
 
 

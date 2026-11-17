@@ -104,20 +104,20 @@ def test_server_marks_documents_from_the_extension_as_extension_channel(isolated
     doc = pymupdf.open(); doc.new_page().insert_text((72, 100), "FIN 5ARZ8D2", fontsize=11)
     local = TestClient(app, client=("127.0.0.1", 50000))
     r = local.post("/api/redact", content=doc.tobytes(),
-                   headers={"Content-Type": "application/octet-stream", "X-Suzgec-Client": "extension"})
+                   headers={"Content-Type": "application/octet-stream", "X-SiftGuard-Client": "extension"})
     assert r.status_code == 200
     assert '"channel":"extension"' in isolated_audit.path.read_text(encoding="utf-8")
     secret = pymupdf.open()
     secret.new_page().insert_text((72, 100), "Mexfi sened", fontsize=11)
     blocked = local.post("/api/redact", content=secret.tobytes(),
-                         headers={"Content-Type": "application/octet-stream", "X-Suzgec-Client": "extension"})
+                         headers={"Content-Type": "application/octet-stream", "X-SiftGuard-Client": "extension"})
     assert blocked.status_code == 403
     assert any(i["channel"] == "extension" for i in local.get("/api/admin/incidents").json()["incidents"])
 
 
 def test_extension_tells_the_server_which_channel_it_is_without_sending_text():
-    """Заголовок X-Suzgec-Client нужен, чтобы в панели администратора было видно канал «расширение»."""
+    """Заголовок X-SiftGuard-Client нужен, чтобы в панели администратора было видно канал «расширение»."""
     client_js = (EXT / "mask-client.js").read_text(encoding="utf-8")
-    assert '"X-Suzgec-Client": "extension"' in client_js
+    assert '"X-SiftGuard-Client": "extension"' in client_js
     content_js = (EXT / "content.js").read_text(encoding="utf-8")
     assert "qrifli mətn bloklandı" in content_js and "İnzibatçıya bildiriş göndərildi" in content_js

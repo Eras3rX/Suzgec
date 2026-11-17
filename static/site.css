@@ -1,5 +1,5 @@
 /*
- * Süzgəc: общий стиль всех страниц.
+ * SiftGuard: общий стиль всех страниц.
  *
  * Правила дизайна (их проверяют тесты tests/test_design.py):
  *  - один глубокий тёмно-синий для шапки и заголовков; один акцентный зелёный только для «qorundu» (защищено);
@@ -83,6 +83,8 @@ a:hover { color: var(--navy); }
 .site-header .bar { max-width: 1080px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 12px; color: #ffffff; text-decoration: none; }
 .brand:hover { color: #ffffff; }
+.brand-mark { display: block; width: 40px; height: 40px; border-radius: 2px; }
+.brand-name .sift { color: #9fb3d1; }
 .brand-name { display: block; font-family: var(--serif); font-size: 26px; font-weight: 700; line-height: 1.1; }
 .brand-sub { display: block; font-size: 13px; color: #c9d6e6; }
 .site-nav ul { list-style: none; display: flex; gap: 4px; margin: 0; padding: 0; flex-wrap: wrap; }

@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Süzgəc — şəxsi məlumatların qorunması</title>
-  <meta name="description" content="Süzgəc mətndəki şəxsi məlumatları süni intellektə göndərilməzdən əvvəl etiketlərlə əvəz edir və cavabda yerinə qaytarır.">
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>SiftGuard — şəxsi məlumatların qorunması</title>
+  <meta name="description" content="SiftGuard mətndəki şəxsi məlumatları süni intellektə göndərilməzdən əvvəl etiketlərlə əvəz edir və cavabda yerinə qaytarır.">
+  <link rel="icon" href="/static/brand/mark-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/brand/mark-180.png">
   <link rel="preload" href="/static/fonts/noto-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/noto-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/fonts/faces.css">
@@ -17,21 +18,13 @@
 <header class="site-header">
   <div class="bar">
     <a class="brand" href="/">
-      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-        <circle cx="20" cy="20" r="19" fill="#ffffff"/>
-        <g fill="#0b2545">
-          <circle cx="12" cy="12" r="2.8"/><circle cx="20" cy="12" r="2.8"/><circle cx="28" cy="12" r="2.8"/>
-          <circle cx="12" cy="20" r="2.8"/><circle cx="28" cy="20" r="2.8"/>
-          <circle cx="12" cy="28" r="2.8"/><circle cx="20" cy="28" r="2.8"/><circle cx="28" cy="28" r="2.8"/>
-        </g>
-        <circle cx="20" cy="20" r="3.4" fill="#0a7a5a"/>
-      </svg>
-      <span><span class="brand-name">Süzgəc</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
+      <img class="brand-mark" src="/static/brand/mark-64.png" width="40" height="40" alt="">
+      <span><span class="brand-name"><span class="sift">Sift</span>Guard</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
     </a>
     <nav class="site-nav" aria-label="Əsas naviqasiya">
       <ul>
         <li><a href="/" aria-current="page">Əsas səhifə</a></li>
-        <li><a href="/sened">Sənəd süzgəci</a></li>
+        <li><a href="/sened">Sənəd qoruması</a></li>
         <li><a href="/admin" target="_blank" rel="noopener">İdarəetmə paneli<span class="visually-hidden"> (yeni vərəqdə açılır)</span></a></li>
         <li><a href="/haqqinda">Haqqında</a></li>
       </ul>
@@ -51,7 +44,7 @@
 
   <section class="intro">
     <h1>Şəxsi məlumatları qoruyaraq süni intellektdən istifadə edin</h1>
-    <p>Süzgəc mətndəki şəxsi məlumatları (FİN, IBAN, bank kartı, telefon, ad, ünvan və s.) süni intellektə göndərilməzdən əvvəl etiketlərlə əvəz edir, cavab gələndən sonra isə onları yerinə qaytarır.</p>
+    <p>SiftGuard mətndəki şəxsi məlumatları (FİN, IBAN, bank kartı, telefon, ad, ünvan və s.) süni intellektə göndərilməzdən əvvəl etiketlərlə əvəz edir, cavab gələndən sonra isə onları yerinə qaytarır.</p>
   </section>
 
   <ol class="steps">
@@ -77,7 +70,7 @@
           <span class="counter" id="counter">0 / 5000 simvol</span>
         </div>
         <div class="actions">
-          <button type="button" class="btn" id="mask">Süzgəcdən keçir</button>
+          <button type="button" class="btn" id="mask">Mətni qoru</button>
           <button type="button" class="link-btn" id="example">Nümunə mətn</button>
           <button type="button" class="link-btn" id="example-secret">Qrifli nümunə</button>
           <button type="button" class="link-btn" id="clear">Təmizlə</button>
@@ -85,7 +78,7 @@
         <div id="err-text" class="notice notice-block" role="alert" hidden></div>
 
         <div id="result" hidden>
-          <h3 style="margin-top:22px">Süzgəcdən keçmiş mətn</h3>
+          <h3 style="margin-top:22px">Qorunmuş mətn</h3>
           <div id="blocked" hidden></div>
           <div id="stage-wrap">
             <div id="stage" class="doc" aria-live="polite"></div>
@@ -110,7 +103,7 @@
       <div class="step-no" aria-hidden="true">2</div>
       <div>
         <h2>AI-yə köçürün</h2>
-        <p class="step-hint">Süzgəcdən keçmiş mətni kopyalayın və istifadə etdiyiniz süni intellekt xidmətinə (ChatGPT, Claude və s.) yapışdırın. AI yalnız etiketləri görəcək.</p>
+        <p class="step-hint">Qorunmuş mətni kopyalayın və istifadə etdiyiniz süni intellekt xidmətinə (ChatGPT, Claude və s.) yapışdırın. AI yalnız etiketləri görəcək.</p>
         <div class="actions" style="margin-top:0">
           <button type="button" class="btn" id="copy-masked" disabled>Mətni kopyala</button>
           <button type="button" class="btn btn-secondary" id="send" disabled>Daxili AI-yə göndər</button>
@@ -161,7 +154,7 @@
 <footer class="site-footer">
   <div class="bar">
     <span><strong>Məlumatların qorunması.</strong> Mətnlər serverdə saxlanmır və qeydə alınmır, yalnız say göstəriciləri toplanır.</span>
-    <span>Süzgəc · OYU CyberAI Hackathon 2026</span>
+    <span>SiftGuard · OYU CyberAI Hackathon 2026</span>
   </div>
 </footer>
 
@@ -244,7 +237,7 @@
     setTimeout(() => { button.textContent = original; }, 2200);
   }
 
-  // ---------- Əsas an: mətn «süzgəcdən keçir», məlumatlar rəngli etiketlərə çevrilir ----------
+  // ---------- Əsas an: mətn «qorunur», məlumatlar rəngli etiketlərə çevrilir ----------
   function playFilter(text, spans) {
     const stage = $("stage");
     const chars = Array.from(text); // server mövqeləri Unicode simvolları ilə sayır
@@ -351,7 +344,7 @@
       if (r.status === 403) { showBlocked(r.data.detail); setSteps(); return null; }
       if (!r.ok) { showMsg("err-text", r.data.detail || "Server xətası."); setSteps(); return null; }
       // Etiket cədvəlini burada qururuq: serverə yazılmır, dəyərləri server qaytarmır.
-      session = { mapping: Suzgec.buildMapping(text, r.data.spans), text };
+      session = { mapping: SiftGuard.buildMapping(text, r.data.spans), text };
       lastMasked = r.data.masked_text;
       showResult(text, r.data);
       setSteps();
@@ -377,11 +370,11 @@
   function doRestore() {
     showMsg("err-restore", "");
     $("warnings").hidden = true;
-    if (!session) { showMsg("err-restore", "Əvvəlcə 1-ci addımda mətni süzgəcdən keçirin: onsuz etiketlərin nəyi əvəz etdiyi bilinmir."); return; }
+    if (!session) { showMsg("err-restore", "Əvvəlcə 1-ci addımda mətni qoruyun: onsuz etiketlərin nəyi əvəz etdiyi bilinmir."); return; }
     const answer = $("answer-in").value;
     if (!answer.trim()) { showMsg("err-restore", "AI cavabını yuxarıdakı sahəyə yapışdırın."); return; }
 
-    const res = Suzgec.restoreAnswer(answer, session.mapping);
+    const res = SiftGuard.restoreAnswer(answer, session.mapping);
     const nodes = res.parts.map((p) => {
       if (p.type === "value") {
         const v = el("span", "val", p.text); v.dataset.cat = p.category;
@@ -403,7 +396,7 @@
   }
 
   function sampleReply(broken) {
-    if (!session) { showMsg("err-restore", "Əvvəlcə 1-ci addımda mətni süzgəcdən keçirin."); return; }
+    if (!session) { showMsg("err-restore", "Əvvəlcə 1-ci addımda mətni qoruyun."); return; }
     const labels = Object.keys(session.mapping);
     const facts = labels.map((l) => (LABELS[l.slice(1, l.indexOf("_"))] || "məlumat") + " " + l);
     let t = "Salam! Müraciətinizi aldıq. Göstərilən məlumatları yoxladıq: " + facts.join("; ") + ". Cavabımız bir gün ərzində veriləcək.";
@@ -482,7 +475,7 @@
       $("send").disabled = !c.ai_available;
       $("ai-text").textContent = c.ai_available ? "Daxili AI: qoşulub" : "Daxili AI: API açarı təyin edilməyib";
       $("ai-chip").className = "status" + (c.ai_available ? " status-ready" : "");
-      if (c.ai_available) $("send-hint").textContent = "Daxili AI qoşulub: mətn süzgəcdən keçirildikdən sonra birbaşa göndərilir, cavab avtomatik bərpa olunur.";
+      if (c.ai_available) $("send-hint").textContent = "Daxili AI qoşulub: mətn qorunduqdan sonra birbaşa göndərilir, cavab avtomatik bərpa olunur.";
       const [text, cls] = MODEL[c.model] || MODEL.off;
       $("model-text").textContent = text;
       $("model-chip").className = "status" + (cls ? " " + cls : "");

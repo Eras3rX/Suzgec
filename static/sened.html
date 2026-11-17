@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Süzgəc — sənəd süzgəci</title>
+  <title>SiftGuard — sənəd qoruması</title>
   <meta name="description" content="Şəkil və PDF sənədlərdə FİN, telefon, IBAN, ad, üz və imza avtomatik qaralanır; süni intellektə yalnız təmizlənmiş sənəd gedir.">
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/brand/mark-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/brand/mark-180.png">
   <link rel="preload" href="/static/fonts/noto-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/noto-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/fonts/faces.css">
@@ -17,21 +18,13 @@
 <header class="site-header">
   <div class="bar">
     <a class="brand" href="/">
-      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-        <circle cx="20" cy="20" r="19" fill="#ffffff"/>
-        <g fill="#0b2545">
-          <circle cx="12" cy="12" r="2.8"/><circle cx="20" cy="12" r="2.8"/><circle cx="28" cy="12" r="2.8"/>
-          <circle cx="12" cy="20" r="2.8"/><circle cx="28" cy="20" r="2.8"/>
-          <circle cx="12" cy="28" r="2.8"/><circle cx="20" cy="28" r="2.8"/><circle cx="28" cy="28" r="2.8"/>
-        </g>
-        <circle cx="20" cy="20" r="3.4" fill="#0a7a5a"/>
-      </svg>
-      <span><span class="brand-name">Süzgəc</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
+      <img class="brand-mark" src="/static/brand/mark-64.png" width="40" height="40" alt="">
+      <span><span class="brand-name"><span class="sift">Sift</span>Guard</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
     </a>
     <nav class="site-nav" aria-label="Əsas naviqasiya">
       <ul>
         <li><a href="/">Əsas səhifə</a></li>
-        <li><a href="/sened" aria-current="page">Sənəd süzgəci</a></li>
+        <li><a href="/sened" aria-current="page">Sənəd qoruması</a></li>
         <li><a href="/admin" target="_blank" rel="noopener">İdarəetmə paneli<span class="visually-hidden"> (yeni vərəqdə açılır)</span></a></li>
         <li><a href="/haqqinda">Haqqında</a></li>
       </ul>
@@ -40,7 +33,7 @@
 </header>
 <div class="statusbar">
   <div class="bar">
-    <span id="ready-chip" class="status" role="status"><span class="status-dot"></span><span id="ready-text">Sənəd süzgəci yoxlanılır…</span></span>
+    <span id="ready-chip" class="status" role="status"><span class="status-dot"></span><span id="ready-text">Sənəd qoruması yoxlanılır…</span></span>
     <span>Fayllar serverdə saxlanmır: yalnız yaddaşda emal olunur</span>
   </div>
 </div>
@@ -50,7 +43,7 @@
 
   <section class="intro">
     <h1>Şəkil və PDF sənədlərin avtomatik qaralanması</h1>
-    <p>Şəxsiyyət vəsiqəsinin şəkli, ekran görüntüsü və ya PDF müqavilə yükləyin. Süzgəc FİN, telefon, IBAN, ad və digər məlumatları, şəkildə isə üz və imza sahəsini tapıb qara zolaqla örtür. Süni intellektə yalnız təmizlənmiş sənəd mətni gedir.</p>
+    <p>Şəxsiyyət vəsiqəsinin şəkli, ekran görüntüsü və ya PDF müqavilə yükləyin. SiftGuard FİN, telefon, IBAN, ad və digər məlumatları, şəkildə isə üz və imza sahəsini tapıb qara zolaqla örtür. Süni intellektə yalnız təmizlənmiş sənəd mətni gedir.</p>
   </section>
 
   <h2>Sənədi yükləyin</h2>
@@ -72,7 +65,7 @@
     </div>
   </div>
   <div class="actions">
-    <button type="button" class="btn" id="go" disabled>Süzgəcdən keçir</button>
+    <button type="button" class="btn" id="go" disabled>Sənədi qoru</button>
     <button type="button" class="link-btn" id="sample-card">Sintetik vəsiqə nümunəsi</button>
     <button type="button" class="link-btn" id="sample-secret">Qrifli sənəd nümunəsi</button>
   </div>
@@ -85,16 +78,16 @@
     <div id="pager" class="pager" role="group" aria-label="Səhifələr"></div>
 
     <div class="compare">
-      <section class="pane pane-before" aria-label="Süzgəcsiz sənəd">
-        <div class="pane-head"><span>Süzgəcsiz</span><span class="sub">AI-yə belə gedərdi</span></div>
+      <section class="pane pane-before" aria-label="SiftGuard olmadan sənəd">
+        <div class="pane-head"><span>SiftGuard olmadan</span><span class="sub">AI-yə belə gedərdi</span></div>
         <div class="doc-stage" id="stage-before">
           <img id="img-before" alt="Orijinal sənəd. Yalnız sizin brauzerinizdə göstərilir.">
           <div id="zones"></div>
           <div class="scan-line" id="scan"></div>
         </div>
       </section>
-      <section class="pane pane-after" aria-label="Süzgəclə sənəd">
-        <div class="pane-head"><span>Süzgəclə</span><span class="sub">AI-yə bu gedir</span></div>
+      <section class="pane pane-after" aria-label="SiftGuard ilə sənəd">
+        <div class="pane-head"><span>SiftGuard ilə</span><span class="sub">AI-yə bu gedir</span></div>
         <div class="doc-stage" id="stage-after">
           <img id="img-after" class="reveal" alt="Qaralanmış sənəd. Məlumatlar qara zolaqla örtülüb.">
         </div>
@@ -111,14 +104,14 @@
       <div id="masked" class="masked-box"></div>
       <p class="small muted" style="margin-top:8px">Burada orijinal dəyərlər yoxdur, yalnız etiketlər. Süni intellekt şəkli deyil, bu mətni alır.</p>
     </details>
-    <p class="small muted" style="margin-top:14px;max-width:75ch">Məhdudiyyətlər: şəkildə mətn OCR ilə oxunur (diakritik işarələr itə bilər), üz yalnız qarşıdan çəkilmiş şəkillərdə tapılır, imza «İmza» sözünün yaxınlığında axtarılır. Süzgəc nəticəni yoxlamağı əvəz etmir: göndərməzdən əvvəl qaralanmış sənədə baxın.</p>
+    <p class="small muted" style="margin-top:14px;max-width:75ch">Məhdudiyyətlər: şəkildə mətn OCR ilə oxunur (diakritik işarələr itə bilər), üz yalnız qarşıdan çəkilmiş şəkillərdə tapılır, imza «İmza» sözünün yaxınlığında axtarılır. SiftGuard nəticəni yoxlamağı əvəz etmir: göndərməzdən əvvəl qaralanmış sənədə baxın.</p>
   </div>
 </main>
 
 <footer class="site-footer">
   <div class="bar">
     <span><strong>Məlumatların qorunması.</strong> Fayllar serverdə saxlanmır və qeydə alınmır, yalnız say göstəriciləri toplanır.</span>
-    <span>Süzgəc · OYU CyberAI Hackathon 2026</span>
+    <span>SiftGuard · OYU CyberAI Hackathon 2026</span>
   </div>
 </footer>
 
@@ -142,8 +135,8 @@
   // ---------- Hazırlıq ----------
   fetch("/api/config", { cache: "no-store" }).then((r) => r.json()).then((c) => {
     $("ready-chip").className = "status " + (c.redact_available ? "status-ready" : "");
-    $("ready-text").textContent = c.redact_available ? "Sənəd süzgəci hazırdır" : "Sənəd süzgəci quraşdırılmayıb";
-    if (!c.redact_available) showError("Sənəd süzgəci bu serverdə quraşdırılmayıb (requirements-vision.txt).");
+    $("ready-text").textContent = c.redact_available ? "Sənəd qoruması hazırdır" : "Sənəd qoruması quraşdırılmayıb";
+    if (!c.redact_available) showError("Sənəd qoruması bu serverdə quraşdırılmayıb (requirements-vision.txt).");
   }).catch(() => { $("ready-text").textContent = "Server cavab vermir"; });
 
   function setFile(blob, name) {

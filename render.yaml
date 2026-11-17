@@ -2,7 +2,7 @@
 # ANTHROPIC_API_KEY вводится вручную в панели Render (sync: false).
 services:
   - type: web
-    name: suzgec
+    name: siftguard
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt

@@ -20,7 +20,7 @@
         $("model-status").textContent = MODEL[st.model] || "";
       } else {
         box.className = "status bad";
-        box.textContent = "Server əlçatmazdır. Süzgəc serverini işə salın.";
+        box.textContent = "Server əlçatmazdır. SiftGuard serverini işə salın.";
         $("model-status").textContent = "";
       }
     } catch (e) {
@@ -32,7 +32,9 @@
   }
 
   async function init() {
-    var s = await chrome.storage.local.get(SuzgecClient.DEFAULTS);
+    // Версия видна, чтобы можно было убедиться, что после обновления кода загружена именно новая
+    $("version").textContent = "Versiya " + chrome.runtime.getManifest().version;
+    var s = await chrome.storage.local.get(SiftGuardClient.DEFAULTS);
     $("enabled").checked = s.enabled;
     $("block").checked = s.blockOnError;
     $("server").value = s.server;
@@ -50,7 +52,7 @@
     $("save").addEventListener("click", async function () {
       var value = $("server").value.trim().replace(/\/+$/, "");
       var msg = $("msg");
-      if (!SuzgecClient.isLoopback(value)) {
+      if (!SiftGuardClient.isLoopback(value)) {
         msg.className = "msg bad";
         msg.textContent = "Yalnız yerli server icazəlidir: http://127.0.0.1:8000 və ya http://localhost:8000";
         return;

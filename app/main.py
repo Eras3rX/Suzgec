@@ -1,4 +1,4 @@
-"""FastAPI-сервер Süzgəc.
+"""FastAPI-сервер SiftGuard.
 
 Приватность: тексты и таблицы меток нигде не сохраняются и не логируются.
 Здесь нет print/logging с данными запроса; в ответах об ошибках текст пользователя не повторяется.
@@ -47,12 +47,12 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 limiter = RateLimiter(RATE_LIMIT_PER_MINUTE, 60.0)
 incidents = IncidentLog()  # журнал блокировок по грифу: время, категория, канал (без текста)
 audit = AuditLog()  # журнал аудита на диске: только HMAC-хеши и время, без значений
-_log = logging.getLogger("suzgec")
+_log = logging.getLogger("siftguard")
 
 
 def _audit_detected(masked, channel: str, request: Request, department: str | None) -> None:
     """Записать в журнал аудита хеши найденных значений. Сбой журнала не должен ломать работу пользователя."""
-    if request.headers.get("x-suzgec-client", "").lower() == "extension":
+    if request.headers.get("x-siftguard-client", "").lower() == "extension":
         channel = "extension"
     # категория берётся из метки: "[FIN_1]" -> "FIN"
     items = [(label[1:-1].rsplit("_", 1)[0], value) for label, value in masked.mapping.items()]
@@ -82,7 +82,7 @@ async def lifespan(_app: FastAPI):
 
 mimetypes.add_type("font/woff2", ".woff2")  # на Windows этого типа может не быть в реестре
 
-app = FastAPI(title="Süzgəc", lifespan=lifespan)
+app = FastAPI(title="SiftGuard", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Статистика — только счётчики по категориям, никаких текстов.
@@ -222,7 +222,7 @@ def _block_classified(text: str, channel: str, request: Request, department: str
 
 def _register_block(category: str, channel: str, request: Request, department: str | None) -> JSONResponse:
     """Занести блокировку в счётчики, журнал инцидентов и журнал аудита; вернуть ответ 403."""
-    if request.headers.get("x-suzgec-client", "").lower() == "extension":
+    if request.headers.get("x-siftguard-client", "").lower() == "extension":
         channel = "extension"
     name = CLASSIFICATION_NAMES[category]
     dept = _department(department)
@@ -334,7 +334,7 @@ async def redact_document(request: Request):
     документа для AI. Исходный файл и найденные значения нигде не сохраняются.
     """
     if not redact.available():
-        raise HTTPException(status_code=503, detail="Sənəd süzgəci quraşdırılmayıb (requirements-vision.txt).")
+        raise HTTPException(status_code=503, detail="Sənəd qoruması quraşdırılmayıb (requirements-vision.txt).")
     data = await _read_upload(request)
     department = request.headers.get("x-department")
     if not _redact_slots.acquire(blocking=False):
@@ -369,7 +369,7 @@ async def redact_document(request: Request):
         "counts": dict(result.counts),
         "masked_text": masked.masked_text,
         "pages": result.pages,
-        "file": {"mime": result.mime, "name": "suzgec-qaralanmis." + ("pdf" if result.kind == "pdf" else "png"),
+        "file": {"mime": result.mime, "name": "siftguard-qaralanmis." + ("pdf" if result.kind == "pdf" else "png"),
                  "data": base64.b64encode(result.data).decode("ascii")},
     }
 

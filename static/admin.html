@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Süzgəc — idarəetmə paneli</title>
-  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <title>SiftGuard — idarəetmə paneli</title>
+  <link rel="icon" href="/static/brand/mark-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/brand/mark-180.png">
   <link rel="preload" href="/static/fonts/noto-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/noto-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/fonts/faces.css">
@@ -16,21 +17,13 @@
 <header class="site-header">
   <div class="bar">
     <a class="brand" href="/">
-      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-        <circle cx="20" cy="20" r="19" fill="#ffffff"/>
-        <g fill="#0b2545">
-          <circle cx="12" cy="12" r="2.8"/><circle cx="20" cy="12" r="2.8"/><circle cx="28" cy="12" r="2.8"/>
-          <circle cx="12" cy="20" r="2.8"/><circle cx="28" cy="20" r="2.8"/>
-          <circle cx="12" cy="28" r="2.8"/><circle cx="20" cy="28" r="2.8"/><circle cx="28" cy="28" r="2.8"/>
-        </g>
-        <circle cx="20" cy="20" r="3.4" fill="#0a7a5a"/>
-      </svg>
-      <span><span class="brand-name">Süzgəc</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
+      <img class="brand-mark" src="/static/brand/mark-64.png" width="40" height="40" alt="">
+      <span><span class="brand-name"><span class="sift">Sift</span>Guard</span><span class="brand-sub">Məlumat qoruma filtri</span></span>
     </a>
     <nav class="site-nav" aria-label="Əsas naviqasiya">
       <ul>
         <li><a href="/">Əsas səhifə</a></li>
-        <li><a href="/sened">Sənəd süzgəci</a></li>
+        <li><a href="/sened">Sənəd qoruması</a></li>
         <li><a href="/admin" aria-current="page">İdarəetmə paneli</a></li>
         <li><a href="/haqqinda">Haqqında</a></li>
       </ul>
@@ -180,7 +173,7 @@
 <footer class="site-footer">
   <div class="bar">
     <span><strong>Məlumatların qorunması.</strong> Mətnlər serverdə saxlanmır və qeydə alınmır, yalnız say göstəriciləri toplanır.</span>
-    <span>Süzgəc · OYU CyberAI Hackathon 2026</span>
+    <span>SiftGuard · OYU CyberAI Hackathon 2026</span>
   </div>
 </footer>
 
@@ -188,7 +181,7 @@
 (function () {
   "use strict";
 
-  const CHANNELS = { chat: "Daxili AI", mask: "Kopyala və yapışdır", extension: "Brauzer əlavəsi", redact: "Sənəd süzgəci" };
+  const CHANNELS = { chat: "Daxili AI", mask: "Kopyala və yapışdır", extension: "Brauzer əlavəsi", redact: "Sənəd qoruması" };
   const MAIN = [["FIN", "FİN"], ["IBAN", "IBAN"], ["KART", "Kart"], ["TEL", "Telefon"], ["AD", "Ad"]];
   const OTHER = [["ID", "Vəsiqə"], ["VOEN", "VÖEN"], ["EMAIL", "E-poçt"], ["ADRES", "Ünvan"], ["TARIX", "Tarix"]];
   const ALL_CATS = MAIN.concat(OTHER);
@@ -298,7 +291,7 @@
     const fresh = incidents.filter((i) => i.id > ackId);
     $("alert").hidden = fresh.length === 0;
     $("tab-count").hidden = fresh.length === 0; $("tab-count").textContent = String(fresh.length);
-    document.title = fresh.length ? "(" + fresh.length + ") Kritik · Süzgəc" : "Süzgəc — idarəetmə paneli";
+    document.title = fresh.length ? "(" + fresh.length + ") Kritik · SiftGuard" : "SiftGuard — idarəetmə paneli";
     if (fresh.length) {
       const last = fresh[0];
       $("alert-title").textContent = fresh.length === 1

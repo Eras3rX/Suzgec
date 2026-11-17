@@ -1,5 +1,5 @@
 /*
- * Контент-скрипт для chatgpt.com: при вставке текста отправляет его на локальный сервер Süzgəc,
+ * Контент-скрипт для chatgpt.com: при вставке текста отправляет его на локальный сервер SiftGuard,
  * получает замаскированную версию и вставляет её вместо исходной.
  *
  * Принципы:
@@ -14,8 +14,8 @@
 (function () {
   "use strict";
 
-  if (window.__suzgecLoaded) return;
-  window.__suzgecLoaded = true;
+  if (window.__siftguardLoaded) return;
+  window.__siftguardLoaded = true;
 
   var CHUNK = 4500; // сервер принимает до 5000 символов за раз
   var MAX_TOTAL = 100000; // больше не обрабатываем: слишком долго и странно для чата
@@ -23,31 +23,31 @@
   var ownEvent = null; // наше собственное событие paste: его не перехватываем повторно
 
   var MESSAGES = {
-    protected: function (n) { return "Süzgəc: " + n + " məlumat qorundu"; },
+    protected: function (n) { return "SiftGuard: " + n + " məlumat qorundu"; },
     classified: function (category) {
-      return "Süzgəc: " + (category ? "«" + category + "»" : "Məxfi/Gizli") + " qrifli mətn bloklandı, yapışdırılmadı. İnzibatçıya bildiriş göndərildi";
+      return "SiftGuard: " + (category ? "«" + category + "»" : "Məxfi/Gizli") + " qrifli mətn bloklandı, yapışdırılmadı. İnzibatçıya bildiriş göndərildi";
     },
-    too_long: "Süzgəc: mətn çox uzundur (maks. 100 000 simvol), yapışdırılmadı",
-    rate_limited: "Süzgəc: çox sorğu göndərildi, bir az gözləyin. Mətn yapışdırılmadı",
-    blocked: "Süzgəc serveri əlçatmazdır, mətn yapışdırılmadı. Serveri işə salın",
-    passed: "Süzgəc serveri əlçatmazdır: mətn qorunmadan yapışdırıldı",
-    processing: "Süzgəc: sənəd emal olunur, bir neçə saniyə gözləyin…",
+    too_long: "SiftGuard: mətn çox uzundur (maks. 100 000 simvol), yapışdırılmadı",
+    rate_limited: "SiftGuard: çox sorğu göndərildi, bir az gözləyin. Mətn yapışdırılmadı",
+    blocked: "SiftGuard serveri əlçatmazdır, mətn yapışdırılmadı. Serveri işə salın",
+    passed: "SiftGuard serveri əlçatmazdır: mətn qorunmadan yapışdırıldı",
+    processing: "SiftGuard: sənəd emal olunur, bir neçə saniyə gözləyin…",
     file_done: function (counts) {
       var visual = (counts.UZ || 0) + (counts.IMZA || 0);
       var data = Object.keys(counts).reduce(function (s, k) { return k === "UZ" || k === "IMZA" ? s : s + counts[k]; }, 0);
-      if (!data && !visual) return "Süzgəc: sənəddə məlumat tapılmadı, qaralanmış surət əlavə olundu";
-      return "Süzgəc: sənəd qaralandı (" + data + " məlumat" + (counts.UZ ? ", " + counts.UZ + " üz" : "") + (counts.IMZA ? ", " + counts.IMZA + " imza" : "") + ")";
+      if (!data && !visual) return "SiftGuard: sənəddə məlumat tapılmadı, qaralanmış surət əlavə olundu";
+      return "SiftGuard: sənəd qaralandı (" + data + " məlumat" + (counts.UZ ? ", " + counts.UZ + " üz" : "") + (counts.IMZA ? ", " + counts.IMZA + " imza" : "") + ")";
     },
     file_classified: function (category) {
-      return "Süzgəc: " + (category ? "«" + category + "»" : "Məxfi/Gizli") + " qrifli sənəd bloklandı, əlavə olunmadı. İnzibatçıya bildiriş göndərildi";
+      return "SiftGuard: " + (category ? "«" + category + "»" : "Məxfi/Gizli") + " qrifli sənəd bloklandı, əlavə olunmadı. İnzibatçıya bildiriş göndərildi";
     },
-    file_too_big: "Süzgəc: fayl çox böyükdür (maks. 10 MB), əlavə olunmadı",
+    file_too_big: "SiftGuard: fayl çox böyükdür (maks. 10 MB), əlavə olunmadı",
     file_unsupported: function (detail) {
-      return "Süzgəc: " + (detail || "fayl emal oluna bilmədi") + ". Fayl əlavə olunmadı";
+      return "SiftGuard: " + (detail || "fayl emal oluna bilmədi") + ". Fayl əlavə olunmadı";
     },
-    file_unavailable: "Süzgəc: sənəd süzgəci serverdə quraşdırılmayıb, fayl əlavə olunmadı",
-    file_blocked: "Süzgəc serveri əlçatmazdır, fayl əlavə olunmadı. Serveri işə salın",
-    file_passed: "Süzgəc serveri əlçatmazdır: fayl qorunmadan əlavə olundu",
+    file_unavailable: "SiftGuard: sənəd qoruması serverdə quraşdırılmayıb, fayl əlavə olunmadı",
+    file_blocked: "SiftGuard serveri əlçatmazdır, fayl əlavə olunmadı. Serveri işə salın",
+    file_passed: "SiftGuard serveri əlçatmazdır: fayl qorunmadan əlavə olundu",
   };
   var FILE_TIMEOUT = 120000; // первый запуск распознавания на сервере может быть долгим
   var MAX_FILE = 10 * 1024 * 1024; // как на сервере
@@ -82,10 +82,10 @@
   // ---------- Уведомление ----------
 
   function toast(message, kind) {
-    var host = document.getElementById("suzgec-toast-host");
+    var host = document.getElementById("siftguard-toast-host");
     if (!host) {
       host = document.createElement("div");
-      host.id = "suzgec-toast-host";
+      host.id = "siftguard-toast-host";
       var shadow = host.attachShadow({ mode: "open" }); // стили сайта на нас не влияют
       var style = document.createElement("style");
       style.textContent =
@@ -445,5 +445,13 @@
   document.addEventListener("input", onFileInput, true);
   document.addEventListener("drop", onDrop, true); // перетаскивание файла в окно чата
 
-  window.__suzgecTest = { splitText: splitText, renumber: renumber, isCandidate: isCandidate }; // для проверок; странице сайта не виден
+  window.__siftguardTest = { splitText: splitText, renumber: renumber, isCandidate: isCandidate }; // для проверок; странице сайта не виден
+
+  // Короткое уведомление при загрузке страницы: видно, что именно эта версия расширения работает на вкладке
+  // (после обновления расширения вкладку нужно перезагрузить, иначе на ней остаётся старый код).
+  if (!window.__siftguardQuiet) {
+    setTimeout(function () {
+      try { toast("SiftGuard " + chrome.runtime.getManifest().version + " aktivdir: mətn, şəkil və PDF qorunur", "ok"); } catch (e) { /* не страшно */ }
+    }, 800);
+  }
 })();
