@@ -8,7 +8,7 @@
 (function (root) {
   "use strict";
 
-  var CATS = "FIN|ID|VOEN|IBAN|KART|TEL|EMAIL|AD";
+  var CATS = "FIN|ID|VOEN|IBAN|KART|TEL|EMAIL|ADRES|AD|TARIX"; // ADRES перед AD: важен порядок
   var CANONICAL = new RegExp("^\\[(" + CATS + ")_(\\d+)\\]$"); // точная форма метки, регистр важен
 
   // Метка в любом виде: точная [FIN_1], а также испорченная: [fin_1], [ FIN 1 ], [FIN-1], FIN_1, (FIN_1)…

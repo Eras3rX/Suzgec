@@ -12,6 +12,9 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      # Бесплатному тарифу (512 МБ) локальная модель не по силам: там работают только правила
+      - key: PII_MODEL_ENABLED
+        value: "0"
       - key: ANTHROPIC_MODEL
         value: claude-sonnet-5-5
       - key: ANTHROPIC_API_KEY

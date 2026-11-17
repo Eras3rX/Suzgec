@@ -7,6 +7,7 @@ import app.main as main
 def no_real_key(monkeypatch):
     """Тесты никогда не должны использовать настоящий ключ из .env."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("PII_MODEL_ENABLED", "0")  # тяжёлую модель в обычных тестах не грузим
     main.limiter.reset()
     yield
     main.limiter.reset()

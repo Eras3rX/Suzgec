@@ -1,14 +1,34 @@
-"""Детектор азербайджанских персональных данных.
+"""Детектор азербайджанских персональных данных (гибрид: правила + локальная модель).
 
-detect(text) -> список Finding (категория, позиции, значение).
+detect(text) -> список Finding (категория, позиции, значение, источник).
+  Правила (регулярные выражения, контрольные суммы, словарь имён) находят FİN, IBAN, карты, телефоны…
+  Локальная модель (app/ml_detector.py, если включена и загружена) добавляет имена, адреса, даты.
+  Если модели нет, она отключена или не загрузилась, работают только правила.
+detect_rules(text) -> только правила.
 is_classified(text) -> True, если в тексте есть гриф «Məxfi» / «Gizli».
+
+Защита от обхода (правила смотрят не на «как написано», а на «что это»):
+  - невидимые символы (нулевой ширины, мягкий перенос) удаляются, позиции находок считаются по исходному тексту;
+  - похожие буквы кириллицы и греческого (А, В, С, Е, Н, К, М, О, Р, Т, Х…), «широкие» буквы и цифры
+    других алфавитов приводятся к латинице и обычным цифрам (длина текста при этом не меняется);
+  - данные, разбитые пробелами, дефисами, точками, переносами строк, находятся с проверкой контрольной суммы
+    (IBAN, карта) или формата (удостоверение, телефон, email, VÖEN);
+  - регистр не важен (aze…, MƏXFİ, ELVIN MƏMMƏDOV). Исключение: FİN без контрольной суммы в нижнем
+    регистре, с пробелами или точками принимается только по подсказке («FİN: …») или по очень характерному виду.
+Находки из «ослабленных» шаблонов уступают обычным при пересечении.
 
 Форматы упрощены и будут сверены с официальными источниками.
 """
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
+
+
+SOURCE_RULE = "rule"
+SOURCE_AI = "ai"
+SOURCE_BOTH = "rule+ai"
 
 
 @dataclass(frozen=True)
@@ -17,17 +37,22 @@ class Finding:
     start: int
     end: int
     value: str
+    source: str = SOURCE_RULE  # кто нашёл: "rule" (правило), "ai" (модель) или "rule+ai" (оба)
 
 
 # При пересечении находок побеждает категория, стоящая раньше в списке.
-PRIORITY = ["EMAIL", "IBAN", "KART", "ID", "VOEN", "TEL", "FIN", "AD"]
+# ADRES и TARIX находит только модель; правила их не знают.
+PRIORITY = ["EMAIL", "IBAN", "KART", "ID", "VOEN", "TEL", "FIN", "AD", "ADRES", "TARIX"]
+# Категории, в которых главная — модель. Остальные (структурированные) всегда решают правила.
+MODEL_CATEGORIES = {"AD", "ADRES", "TARIX"}
+_WEAK_PENALTY = 100  # «ослабленные» шаблоны (обход) уступают обычным
 
 # ---------- Контрольные суммы ----------
 
 
 def iban_valid(iban: str) -> bool:
-    """AZ IBAN: 28 символов, проверка mod-97."""
-    iban = iban.replace(" ", "").upper()
+    """AZ IBAN: 28 символов, проверка mod-97 (разделители игнорируются)."""
+    iban = re.sub(r"[^A-Za-z0-9]", "", iban).upper()
     if len(iban) != 28 or not iban.startswith("AZ"):
         return False
     rearranged = iban[4:] + iban[:4]
@@ -49,8 +74,68 @@ def luhn_valid(number: str) -> bool:
     return total % 10 == 0
 
 
+# ---------- Нормализация (защита от обхода) ----------
+
+# Буквы других алфавитов, неотличимые на глаз от латинских.
+_HOMOGLYPHS = str.maketrans({
+    # кириллица
+    "А": "A", "В": "B", "С": "C", "Е": "E", "Н": "H", "К": "K", "М": "M", "О": "O", "Р": "P",
+    "Т": "T", "Х": "X", "У": "Y", "І": "I", "Ј": "J", "Ѕ": "S", "Ү": "Y",
+    "а": "a", "с": "c", "е": "e", "о": "o", "р": "p", "х": "x", "у": "y", "і": "i", "ј": "j",
+    "ѕ": "s", "һ": "h", "ԁ": "d", "ӏ": "l",
+    "Ә": "Ə", "ә": "ə",
+    # греческие
+    "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N",
+    "Ο": "O", "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X", "ο": "o", "ν": "v",
+})
+
+
+def _fold_char(ch: str) -> str:
+    """Один символ -> один символ: широкие буквы/цифры -> обычные, двойники -> латиница."""
+    if ord(ch) < 128:
+        return ch
+    nk = unicodedata.normalize("NFKC", ch)
+    if len(nk) == 1:
+        ch = nk
+    if ch.isdigit() and not ("0" <= ch <= "9"):
+        try:
+            return str(unicodedata.digit(ch))
+        except ValueError:
+            pass
+    return ch.translate(_HOMOGLYPHS)
+
+
+def _normalize(text: str) -> tuple[str, str, list[int]]:
+    """Вернуть (plain, folded, idx).
+
+    plain  — текст без невидимых символов (нулевой ширины, мягкий перенос и т.п.);
+    folded — то же, но двойники-буквы и цифры других алфавитов заменены латинскими/обычными (длина та же);
+    idx[i] — позиция i-го символа normalized-текста в исходном тексте (idx[-1] == len(text)).
+    """
+    plain, folded, idx = [], [], []
+    for i, ch in enumerate(text):
+        if unicodedata.category(ch) == "Cf":  # невидимые символы форматирования
+            continue
+        plain.append(ch)
+        folded.append(_fold_char(ch))
+        idx.append(i)
+    idx.append(len(text))
+    return "".join(plain), "".join(folded), idx
+
+
 # ---------- Регулярные выражения ----------
 
+# Разделители между символами одного значения: пробелы, переносы строк, точки, дефисы…
+_G = r"[\s.\-_·•–—]{0,3}"    # от 0 до 3 разделителей
+_G1 = r"[\s.\-_·•–—]{1,3}"   # хотя бы один
+_GP = r"[\s\-_·•–—()]{0,3}"  # для телефонов: без точек (иначе дата 05.07.2024 похожа на номер)
+
+
+def _spaced(parts: list[str], gap: str = _G) -> str:
+    return gap.join(parts)
+
+
+# Обычные (строгие) шаблоны
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _IBAN = re.compile(r"(?<![A-Za-z0-9])AZ\d{2} ?[A-Z]{4}(?: ?\d{4}){5}(?![A-Za-z0-9])")
 _CARD = re.compile(r"(?<!\d)(?:\d{4}[ -]?){3}\d{4}(?!\d)")
@@ -72,7 +157,99 @@ _PHONE = re.compile(
 _FIN = re.compile(
     r"(?<![A-Za-z0-9])(?=[A-Z0-9]{7}(?![A-Za-z0-9]))(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{7}"
 )
-_CLASSIFIED = re.compile(r"(?<!\w)(?:[Mm][əƏ][xX][fF][iİıI]|[Gg][iİıI][zZ][lL][iİıI])(?!\w)")
+
+# Ослабленные шаблоны: те же данные, но разбитые разделителями или в другом регистре.
+_IBAN_T = re.compile(
+    r"(?<![A-Za-z0-9])" + _spaced(["A", "Z"] + [r"\d"] * 2 + ["[A-Z]"] * 4 + [r"\d"] * 20) + r"(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+_CARD_T = re.compile(
+    r"(?<!\d)(?<!\d[\s.\-_])\d(?:" + _G + r"\d){15}(?!\d)(?!" + _G + r"\d)"
+)
+_ID_T = re.compile(
+    r"(?<![A-Za-z0-9])(?:" + _spaced(["A", "Z", "E"] + [r"\d"] * 8) + "|" + _spaced(["A", "A"] + [r"\d"] * 7)
+    + r")(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+_VOEN_T = re.compile(
+    r"(?i:V[ÖO]EN)(?:-?\w{1,2})?[\s:№#\-]*(?:[^\W\d_]+[\s:№#\-]+){0,2}(\d(?:" + _G + r"\d){9})(?!\d)"
+)
+# «FİN: 1a-2b-3c4» — подсказка-слово перед значением (регистр не важен, допускается «ФИН»).
+_FIN_CTX = re.compile(
+    r"(?<![A-Za-z0-9])(?:F[İIıi]N|ФИН|ФИH)(?![A-Za-z0-9])[\s:№#.\-]{0,4}"
+    r"(?P<v>[A-Za-z0-9](?:" + _G + r"[A-Za-z0-9]){6})(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+# Слитно, но не заглавными: 1a2B3c4 (без подсказки берём только если буквы и цифры часто чередуются).
+_FIN_LOOSE = re.compile(
+    r"(?<![A-Za-z0-9])(?=[A-Za-z0-9]{7}(?![A-Za-z0-9]))(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{7}"
+)
+# Все 7 символов разнесены разделителями: 1 A 2 B 3 C 4.
+# Точки здесь не считаем разделителем: «1. a 2. b 3. c 4.» — это нумерованный список, а не FİN.
+_GS1 = r"[\s\-_·•–—]{1,3}"
+_FIN_SPLIT = re.compile(
+    r"(?<![A-Za-z0-9])(?<![A-Za-z0-9][\s\-_·•–—])[A-Za-z0-9](?:" + _GS1 + r"[A-Za-z0-9]){6}"
+    r"(?![A-Za-z0-9])(?!" + _GS1 + r"[A-Za-z0-9])"
+)
+_TLDS = "az|com|net|org|ru|info|edu|gov|io|co|tr|uk|de|biz|me|mail"
+_AT = r"(?:@|\(\s*at\s*\)|\[\s*at\s*\])"
+_DOT = r"(?:\.|\(\s*dot\s*\)|\[\s*dot\s*\])"
+# elvin.test @ example . az, elvin(at)example(dot)az
+_EMAIL_T = re.compile(
+    r"(?<![A-Za-z0-9._%+\-])[A-Za-z0-9_%+\-]+(?:\.[A-Za-z0-9_%+\-]+)*\s*" + _AT + r"\s*"
+    r"[A-Za-z0-9\-]+(?:\s*" + _DOT + r"\s*[A-Za-z0-9\-]+)*?\s*" + _DOT + r"\s*(?:" + _TLDS + r")(?![A-Za-z])",
+    re.IGNORECASE,
+)
+_PH_PLUS = re.compile(
+    r"(?<![\w+])\+" + _GP + _spaced(["9", "9", "4"] + [r"\d"] * 9, _GP) + r"(?!\d)(?!" + _GP + r"\d)"
+)
+_PH_ZERO = re.compile(
+    r"(?<![\w+])(?<!\d[\s\-_])0(?:" + _GP + r"\d){9}(?!\d)(?!" + _GP + r"\d)"
+)
+# «994 50 123 45 67» без плюса: принимаем, только если код оператора настоящий.
+_PH_994 = re.compile(
+    r"(?<![\w+])(?<!\d[\s\-_])" + _spaced(["9", "9", "4"] + [r"\d"] * 9, _GP) + r"(?!\d)(?!" + _GP + r"\d)"
+)
+_PH_DOT_PLUS = re.compile(r"(?<![\w+.])\+994\.\d{2}\.\d{3}\.\d{2}\.\d{2}(?![\d.])")
+_PH_DOT_ZERO = re.compile(r"(?<![\w+.])0\d{2}\.\d{3}\.\d{2}\.\d{2}(?![\d.])")
+# Коды мобильных операторов и Баку; для номеров без «+994» чужие коды не принимаем.
+_PHONE_CODES = {"10", "12", "50", "51", "55", "60", "70", "77", "99"}
+
+
+def _cleaned(s: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]", "", s)
+
+
+def _transitions(s: str) -> int:
+    """Сколько раз в строке буква сменяется цифрой и наоборот."""
+    return sum(1 for a, b in zip(s, s[1:]) if a.isdigit() != b.isdigit())
+
+
+def _fin_shape_ok(token: str) -> bool:
+    return len(token) == 7 and any(c.isdigit() for c in token) and any(c.isalpha() for c in token)
+
+
+# ---------- Гриф «Məxfi» / «Gizli» ----------
+
+_CLS_FOLD = str.maketrans({"ə": "e", "Ə": "e", "ı": "i", "İ": "i", "I": "i"})
+
+
+def _word_re(word: str) -> re.Pattern:
+    return re.compile(r"(?<![a-z0-9])" + _G.join(word) + r"(?![a-z0-9])")
+
+
+_CLASSIFIED = [_word_re("mexfi"), _word_re("gizli")]
+
+
+def is_classified(text: str) -> bool:
+    """Есть ли гриф «Məxfi» / «Gizli» — такой текст блокируется целиком.
+
+    Регистр, двойники-буквы кириллицы, невидимые символы и разделители между буквами не мешают.
+    """
+    _, folded, _ = _normalize(text)
+    f = folded.translate(_CLS_FOLD).lower()
+    return any(p.search(f) for p in _CLASSIFIED)
+
 
 # ---------- Имена ----------
 
@@ -105,23 +282,44 @@ PATRONYMIC_WORDS = {"oğlu", "qızı", "оглы", "кызы"}
 MIN_SURNAME_LEN = 5
 
 _WORD = re.compile(r"\w+")
+_LATIN_LETTER = re.compile(r"[A-Za-zƏəİıÖöÜüŞşÇçĞğ]")
+_OTHER_ALPHABET = re.compile(r"[Ͱ-ϿЀ-ԯ]")  # греческий и кириллица
 
 
-def _find_names(text: str) -> list[Finding]:
-    # 1. Помечаем каждое слово: first / strong / weak / patr — или None (не имя).
+def _az_key(word: str) -> str:
+    """Ключ для сравнения имён: регистр и вариант «I/İ/ı» не важны (ELVIN = Elvin = elvin)."""
+    return word.replace("İ", "i").replace("I", "i").replace("ı", "i").lower()
+
+
+_FIRST_KEYS = {_az_key(n) for n in FIRST_NAMES | FIRST_NAMES_CYR}
+_PATRONYMIC_KEYS = {_az_key(w) for w in PATRONYMIC_WORDS}
+
+
+def _fold_mixed(word: str) -> str:
+    """Слово, где латинские буквы смешаны с кириллическими/греческими («Еlvin»), приводим к латинице."""
+    if _LATIN_LETTER.search(word) and _OTHER_ALPHABET.search(word):
+        return "".join(_fold_char(c) for c in word)
+    return word
+
+
+def _find_names(text: str) -> list[tuple[int, int]]:
+    """Позиции ФИО (по словарю имён и суффиксам фамилий)."""
+    # 1. Помечаем каждое слово: first / strong / weak / patr (и lc — «в нижнем регистре») или None.
     tokens: list[tuple[int, int, str | None]] = []
     prev_kind: str | None = None
     for m in _WORD.finditer(text):
-        word = m.group()
+        word = _fold_mixed(m.group())
+        key = _az_key(word)
+        cased = any(ch.isupper() for ch in word)  # есть заглавные: Elvin, ELVIN, eLvin
         kind: str | None = None
-        if word in FIRST_NAMES or word in FIRST_NAMES_CYR:
-            kind = "first"
-        elif word[0].isupper() and len(word) >= MIN_SURNAME_LEN:
-            if word.endswith(STRONG_SURNAME_SUFFIXES):
-                kind = "strong"
-            elif word.endswith(WEAK_SURNAME_SUFFIXES):
+        if key in _FIRST_KEYS:
+            kind = "first" if cased else "first_lc"
+        elif len(word) >= MIN_SURNAME_LEN:
+            if key.endswith(STRONG_SURNAME_SUFFIXES):
+                kind = "strong" if cased else "strong_lc"
+            elif cased and key.endswith(WEAK_SURNAME_SUFFIXES):
                 kind = "weak"
-        elif word in PATRONYMIC_WORDS and prev_kind is not None:
+        if kind is None and key in _PATRONYMIC_KEYS and prev_kind is not None:
             kind = "patr"  # «oğlu»/«qızı» бывают только после имени
         tokens.append((m.start(), m.end(), kind))
         prev_kind = kind
@@ -137,42 +335,148 @@ def _find_names(text: str) -> list[Finding]:
         else:
             groups.append((start, end, {kind}))
 
-    # 3. ФИО должно содержать имя из словаря или сильную фамилию.
+    # 3. ФИО должно содержать имя с заглавной буквой или сильную фамилию. Всё в нижнем регистре
+    #    принимаем только парой «имя + фамилия» (иначе обычные слова вроде «anar» — гранат).
     return [
-        Finding("AD", s, e, text[s:e])
+        (s, e)
         for s, e, kinds in groups
-        if kinds & {"first", "strong"}
+        if kinds & {"first", "strong"} or {"first_lc", "strong_lc"} <= kinds
     ]
 
 
 # ---------- Основные функции ----------
 
+_Hit = tuple[str, int, int, bool]  # (категория, начало, конец, «ослабленный» шаблон?)
 
-def _regex_findings(text: str) -> list[Finding]:
-    found: list[Finding] = []
-    for m in _EMAIL.finditer(text):
-        found.append(Finding("EMAIL", m.start(), m.end(), m.group()))
-    for m in _IBAN.finditer(text):
+
+def _regex_hits(t: str) -> list[_Hit]:
+    """Все находки шаблонов в нормализованном тексте t."""
+    hits: list[_Hit] = []
+
+    for m in _EMAIL.finditer(t):
+        hits.append(("EMAIL", m.start(), m.end(), False))
+    for m in _EMAIL_T.finditer(t):
+        hits.append(("EMAIL", m.start(), m.end(), True))
+
+    for m in _IBAN.finditer(t):
         if iban_valid(m.group()):
-            found.append(Finding("IBAN", m.start(), m.end(), m.group()))
-    for m in _CARD.finditer(text):
+            hits.append(("IBAN", m.start(), m.end(), False))
+    for m in _IBAN_T.finditer(t):
+        if iban_valid(m.group()):
+            hits.append(("IBAN", m.start(), m.end(), True))
+
+    for m in _CARD.finditer(t):
         if luhn_valid(m.group()):
-            found.append(Finding("KART", m.start(), m.end(), m.group()))
-    for m in _ID.finditer(text):
-        found.append(Finding("ID", m.start(), m.end(), m.group()))
-    for m in _VOEN.finditer(text):
-        found.append(Finding("VOEN", m.start(1), m.end(1), m.group(1)))
-    for m in _PHONE.finditer(text):
-        found.append(Finding("TEL", m.start(), m.end(), m.group()))
-    for m in _FIN.finditer(text):
+            hits.append(("KART", m.start(), m.end(), False))
+    for m in _CARD_T.finditer(t):
+        if luhn_valid(m.group()):
+            hits.append(("KART", m.start(), m.end(), True))
+
+    for m in _ID.finditer(t):
+        hits.append(("ID", m.start(), m.end(), False))
+    for m in _ID_T.finditer(t):
+        hits.append(("ID", m.start(), m.end(), True))
+
+    for m in _VOEN.finditer(t):
+        hits.append(("VOEN", m.start(1), m.end(1), False))
+    for m in _VOEN_T.finditer(t):
+        hits.append(("VOEN", m.start(1), m.end(1), True))
+
+    for m in _PHONE.finditer(t):
+        hits.append(("TEL", m.start(), m.end(), False))
+    for m in _PH_PLUS.finditer(t):
+        hits.append(("TEL", m.start(), m.end(), True))
+    for m in _PH_DOT_PLUS.finditer(t):
+        hits.append(("TEL", m.start(), m.end(), True))
+    for m in _PH_994.finditer(t):
+        if re.sub(r"\D", "", m.group())[3:5] in _PHONE_CODES:
+            hits.append(("TEL", m.start(), m.end(), True))
+    for pattern in (_PH_ZERO, _PH_DOT_ZERO):
+        for m in pattern.finditer(t):
+            digits = re.sub(r"\D", "", m.group())
+            if len(digits) == 10 and digits[1:3] in _PHONE_CODES:
+                hits.append(("TEL", m.start(), m.end(), True))
+
+    for m in _FIN.finditer(t):
         if not _SKU_LIKE.fullmatch(m.group()):
-            found.append(Finding("FIN", m.start(), m.end(), m.group()))
-    return found
+            hits.append(("FIN", m.start(), m.end(), False))
+    for m in _FIN_CTX.finditer(t):
+        if _fin_shape_ok(_cleaned(m.group("v"))):
+            hits.append(("FIN", m.start("v"), m.end("v"), True))
+    for m in _FIN_LOOSE.finditer(t):
+        token = m.group()
+        if _transitions(token) >= 3 and not token.isupper():
+            hits.append(("FIN", m.start(), m.end(), True))
+    for m in _FIN_SPLIT.finditer(t):
+        token = _cleaned(m.group())
+        if _fin_shape_ok(token) and _transitions(token) >= 3:
+            hits.append(("FIN", m.start(), m.end(), True))
+    return hits
 
 
-def detect(text: str) -> list[Finding]:
-    """Найти все персональные данные. Пересечения разрешаются по PRIORITY."""
-    candidates = _regex_findings(text) + _find_names(text)
+def detect_rules(text: str) -> list[Finding]:
+    """Только правила. Пересечения разрешаются по PRIORITY; «ослабленные» шаблоны уступают обычным."""
+    plain, folded, idx = _normalize(text)
+    hits = _regex_hits(folded) + [("AD", s, e, False) for s, e in _find_names(plain)]
+    hits.sort(key=lambda h: (PRIORITY.index(h[0]) + (_WEAK_PENALTY if h[3] else 0), -(h[2] - h[1]), h[1]))
+    accepted: list[_Hit] = []
+    for hit in hits:
+        if all(hit[2] <= a[1] or hit[1] >= a[2] for a in accepted):
+            accepted.append(hit)
+    accepted.sort(key=lambda h: h[1])
+    findings = []
+    for category, s, e, _ in accepted:
+        start, end = idx[s], idx[e - 1] + 1  # обратно в позиции исходного текста
+        findings.append(Finding(category, start, end, text[start:end]))
+    return findings
+
+
+# ---------- Гибрид: правила + модель ----------
+
+
+def _overlaps(a: Finding, b: Finding) -> bool:
+    return a.start < b.end and b.start < a.end
+
+
+def _merge_same_category(items: list[Finding], text: str) -> list[Finding]:
+    """Склеить пересекающиеся находки одной категории (для имён ещё и соседние через пробел)."""
+    out: list[Finding] = []
+    for f in sorted(items, key=lambda x: (x.category, x.start, x.end)):
+        last = out[-1] if out else None
+        touching = (
+            last is not None
+            and f.category == "AD"
+            and last.category == "AD"
+            and f.start >= last.end
+            and text[last.end:f.start].strip(" \t") == ""
+        )
+        if last is not None and last.category == f.category and (f.start < last.end or touching):
+            start, end = min(last.start, f.start), max(last.end, f.end)
+            source = last.source if last.source == f.source else SOURCE_BOTH
+            out[-1] = Finding(f.category, start, end, text[start:end], source)
+        else:
+            out.append(f)
+    return out
+
+
+def merge_findings(text: str, rule: list[Finding], ml: list[Finding]) -> list[Finding]:
+    """Объединить результаты правил и модели и убрать пересечения.
+
+    1. Структурированные данные (FİN, IBAN, карта…) всегда решают правила: модель с ними не спорит.
+    2. Имена, адреса, даты: модель и правила дополняют друг друга. Одинаковые или пересекающиеся
+       находки склеиваются (источник «rule+ai»). Если правило-имя пересекается с адресом или датой
+       от модели, побеждает модель: она видит контекст.
+    3. Оставшиеся пересечения разных категорий решаются по PRIORITY (длиннее — важнее).
+    """
+    structured = [f for f in rule if f.category not in MODEL_CATEGORIES]
+    ml_kept = [m for m in ml if not any(_overlaps(m, s) for s in structured)]
+    rule_names = [
+        r for r in rule
+        if r.category in MODEL_CATEGORIES
+        and not any(_overlaps(r, m) and m.category != r.category for m in ml_kept)
+    ]
+    candidates = structured + _merge_same_category(ml_kept + rule_names, text)
+
     candidates.sort(key=lambda f: (PRIORITY.index(f.category), -(f.end - f.start), f.start))
     accepted: list[Finding] = []
     for cand in candidates:
@@ -182,6 +486,16 @@ def detect(text: str) -> list[Finding]:
     return accepted
 
 
-def is_classified(text: str) -> bool:
-    """Есть ли гриф «Məxfi» / «Gizli» — такой текст блокируется целиком."""
-    return _CLASSIFIED.search(text) is not None
+def detect(text: str, use_model: bool | None = None) -> list[Finding]:
+    """Все персональные данные: правила + локальная модель (если доступна).
+
+    use_model: None — как настроено (по умолчанию модель включена, если загружена);
+               False — только правила (например, для сравнения в eval).
+    """
+    rule = detect_rules(text)
+    if use_model is False:
+        return rule
+    from app import ml_detector  # импорт здесь: модуль не тянет torch, пока модель не включена
+
+    ml = ml_detector.predict(text)
+    return merge_findings(text, rule, ml) if ml else rule

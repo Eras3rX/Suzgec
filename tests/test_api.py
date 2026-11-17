@@ -28,11 +28,13 @@ def test_pages_do_not_use_browser_storage():
 
 
 def test_config_ai_unavailable_without_key():
-    assert client.get("/api/config").json() == {"ai_available": False}
+    body = client.get("/api/config").json()
+    assert body["ai_available"] is False
+    assert body["model"] == "off"  # в тестах локальная модель выключена
 
 
 def test_config_ai_available_with_key(ai_on):
-    assert client.get("/api/config").json() == {"ai_available": True}
+    assert client.get("/api/config").json()["ai_available"] is True
 
 
 # ---------- /api/check ----------
@@ -43,7 +45,8 @@ def test_check_returns_positions_without_values():
     body = r.json()
     assert r.status_code == 200 and not body["blocked"]
     assert {f["category"] for f in body["findings"]} == {"AD", "FIN", "TEL"}
-    assert all(set(f) == {"category", "start", "end"} for f in body["findings"])
+    assert all(set(f) == {"category", "start", "end", "source"} for f in body["findings"])
+    assert all(f["source"] == "rule" for f in body["findings"])  # модель выключена
 
 
 def test_check_flags_classified():

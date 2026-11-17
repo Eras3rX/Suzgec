@@ -12,6 +12,7 @@
       /* цвета категорий: фон подсветки */
       --c-FIN: #fde68a; --c-ID: #fdba74; --c-VOEN: #c4b5fd; --c-IBAN: #93c5fd;
       --c-KART: #f9a8d4; --c-TEL: #86efac; --c-EMAIL: #67e8f9; --c-AD: #fca5a5;
+      --c-ADRES: #bef264; --c-TARIX: #d6d3d1;
     }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.45; }
@@ -48,6 +49,15 @@
     .out { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.5em; }
     .placeholder { color: var(--muted); font-style: italic; }
     mark { border-radius: 4px; padding: 0 3px; color: inherit; }
+    mark sup.src { font-size: 9px; font-weight: 700; margin-left: 2px; padding: 0 3px; border-radius: 3px; color: #fff; vertical-align: super; line-height: 1.1; }
+    sup.src-rule { background: #475467; }
+    sup.src-ai { background: var(--brand); }
+    sup.src-rule-ai { background: #7a5af8; }
+    body.hide-src mark sup.src { display: none; }
+    .chip { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: #eef2f6; color: var(--muted); vertical-align: middle; margin-left: 8px; font-weight: 400; }
+    .chip.ready { background: var(--good-bg); color: var(--good); }
+    .chip.loading { background: var(--warn-bg); color: var(--warn); }
+    .chk { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
     mark.alt { background: var(--bad-bg); outline: 1px solid var(--bad); color: var(--bad); }
     .blocked { background: var(--bad-bg); border: 1px solid #fecdca; color: var(--bad); border-radius: 8px; padding: 12px; font-weight: 600; }
     .step { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
@@ -72,7 +82,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Süzgəc</h1>
+  <h1>Süzgəc <span id="model-chip" class="chip" title="Локальная AI-модель ищет имена, адреса и даты. Работает только на сервере, текст никуда не отправляется.">AI-модель: …</span></h1>
   <p class="sub">Замаскируйте персональные данные перед отправкой в AI и верните их на место в ответе.</p>
 
   <div class="card">
@@ -81,9 +91,11 @@
     <div class="row">
       <button id="example" class="small">Заполнить пример</button>
       <button id="example-secret" class="small">Пример с грифом «Məxfi»</button>
+      <label class="chk"><input type="checkbox" id="show-src" checked> показывать, кто нашёл</label>
       <span class="counter" id="counter">0 / 5000</span>
     </div>
     <div class="legend" id="legend" aria-label="Цвета категорий"></div>
+    <div class="note" style="margin-top:8px">Метка у находки: <b>правило</b> — найдено по шаблону или словарю, <b>AI</b> — локальной моделью, <b>оба</b> — совпало.</div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -106,7 +118,7 @@
       <section class="pane bad">
         <h2 class="bad">Без Süzgəc</h2>
         <div class="note">Так это ушло бы в AI. Найденные данные подсвечены.</div>
-        <div class="label">Исходный текст</div>
+        <div class="label">Исходный текст <span id="src-summary" style="text-transform:none;letter-spacing:0"></span></div>
         <div id="raw" class="out"><span class="placeholder">Здесь появится ваш текст.</span></div>
       </section>
       <section class="pane good">
@@ -145,7 +157,7 @@
       <section class="pane bad">
         <h2 class="bad">Без Süzgəc</h2>
         <div class="note">Так это ушло бы в AI. Найденные данные подсвечены.</div>
-        <div class="label">Исходный текст</div>
+        <div class="label">Исходный текст <span id="ai-src-summary" style="text-transform:none;letter-spacing:0"></span></div>
         <div id="ai-raw" class="out"><span class="placeholder">Здесь появится ваш текст.</span></div>
       </section>
       <section class="pane good">
@@ -169,7 +181,9 @@
 
 <script src="/static/restore.js"></script>
 <script>
-  const LABELS = { FIN: "FİN", ID: "Удостоверение", VOEN: "VÖEN", IBAN: "IBAN", KART: "Банковская карта", TEL: "Телефон", EMAIL: "Email", AD: "ФИО" };
+  const LABELS = { FIN: "FİN", ID: "Удостоверение", VOEN: "VÖEN", IBAN: "IBAN", KART: "Банковская карта", TEL: "Телефон", EMAIL: "Email", AD: "ФИО", ADRES: "Адрес", TARIX: "Дата" };
+  const SRC_SHORT = { rule: "правило", ai: "AI", "rule+ai": "оба" };
+  const SRC_TITLE = { rule: "Нашло правило", ai: "Нашла AI-модель", "rule+ai": "Нашли и правило, и AI-модель" };
   const MAX_LEN = 5000;
 
   const SAMPLE = "Salam! Mən Elvin Məmmədov. FİN kodum 1A2B3C4, vəsiqə nömrəm AZE04512367. " +
@@ -195,11 +209,20 @@
   }
   function setPlaceholder(node, text) { node.replaceChildren(el("span", "placeholder", text)); }
   function colorOf(cat) { return "var(--c-" + cat + ")"; }
-  function mark(text, cat, title) {
+  function mark(text, cat, title, source) {
     const m = el("mark", "", text);
     m.style.background = colorOf(cat);
-    m.title = title || LABELS[cat] || cat;
+    m.title = (title || LABELS[cat] || cat) + (source ? " · " + SRC_TITLE[source] : "");
+    if (source && SRC_SHORT[source]) m.append(el("sup", "src src-" + source.replace("+", "-"), SRC_SHORT[source]));
     return m;
+  }
+
+  // Сколько находок дали правила, AI и оба вместе.
+  function summarize(findings) {
+    const n = { rule: 0, ai: 0, "rule+ai": 0 };
+    findings.forEach((f) => { if (f.source in n) n[f.source]++; });
+    if (!findings.length) return "";
+    return "(правила: " + n.rule + ", AI: " + n.ai + ", оба: " + n["rule+ai"] + ")";
   }
   function showMsg(id, msg) { $(id).textContent = msg; $(id).hidden = !msg; }
 
@@ -211,13 +234,14 @@
   }
 
   // Исходный текст с подсветкой. Позиции от сервера — в символах Unicode (кодовых точках).
-  function renderHighlighted(node, text, findings) {
+  function renderHighlighted(node, text, findings, summaryId) {
+    if (summaryId) $(summaryId).textContent = summarize(findings);
     const chars = Array.from(text);
     const parts = [];
     let pos = 0;
     for (const f of findings) {
       if (f.start > pos) parts.push(chars.slice(pos, f.start).join(""));
-      parts.push(mark(chars.slice(f.start, f.end).join(""), f.category));
+      parts.push(mark(chars.slice(f.start, f.end).join(""), f.category, null, f.source));
       pos = f.end;
     }
     parts.push(chars.slice(pos).join(""));
@@ -283,6 +307,10 @@
         row.append(el("span", "", LABELS[c]), bar, el("span", "stat-num", String(cats[c])));
         return row;
       });
+      const src = s.sources || {};
+      if (rows.length) {
+        rows.push(el("div", "note", "Кто находил: правила — " + (src.rule || 0) + ", AI — " + (src.ai || 0) + ", оба — " + (src["rule+ai"] || 0)));
+      }
       $("stats").replaceChildren(...(rows.length ? rows : [el("span", "placeholder", "Пока ничего не защищено.")]));
     } catch (e) { /* статистика необязательна для работы страницы */ }
   }
@@ -326,7 +354,7 @@
       $("copy-masked").disabled = true;
       resetStep2();
       if (r.status === 403) {
-        renderHighlighted($("raw"), text, []);
+        renderHighlighted($("raw"), text, [], "src-summary");
         $("masked").replaceChildren(el("div", "blocked", "Текст заблокирован: найден гриф «Məxfi» / «Gizli». В AI такой текст отправлять нельзя."));
         return;
       }
@@ -334,7 +362,7 @@
       // Таблицу меток строим здесь, из текста, который уже у пользователя. Сервер значений не возвращает.
       session = { mapping: Suzgec.buildMapping(text, r.data.spans) };
       lastMasked = r.data.masked_text;
-      renderHighlighted($("raw"), text, r.data.spans);
+      renderHighlighted($("raw"), text, r.data.spans, "src-summary");
       renderMasked($("masked"), lastMasked);
       $("copy-masked").disabled = false;
     } catch (e) {
@@ -401,7 +429,7 @@
     try {
       const check = await postJson("/api/check", text);
       if (!check.ok) { showMsg("err-ai", check.data.detail || "Ошибка проверки текста."); return; }
-      renderHighlighted($("ai-raw"), text, check.data.findings);
+      renderHighlighted($("ai-raw"), text, check.data.findings, "ai-src-summary");
 
       const chat = await postJson("/api/chat", text);
       if (chat.status === 403) {
@@ -454,8 +482,27 @@
   updateCounter();
   loadStats();
 
-  // Встроенный AI показываем, только если на сервере задан ключ API.
-  fetch("/api/config").then((r) => r.json()).then((c) => { if (c.ai_available) $("tab-ai").hidden = false; }).catch(() => {});
+  $("show-src").addEventListener("change", () => document.body.classList.toggle("hide-src", !$("show-src").checked));
+
+  // Статус локальной AI-модели (пока грузится, спрашиваем раз в 3 секунды).
+  const MODEL_TEXT = {
+    ready: ["AI-модель: готова", "ready"],
+    loading: ["AI-модель: загружается…", "loading"],
+    off: ["AI-модель: выключена, только правила", ""],
+    unavailable: ["AI-модель: недоступна, только правила", ""],
+  };
+  async function loadConfig() {
+    try {
+      const c = await (await fetch("/api/config")).json();
+      // Встроенный AI показываем, только если на сервере задан ключ API.
+      if (c.ai_available) $("tab-ai").hidden = false;
+      const [text, cls] = MODEL_TEXT[c.model] || MODEL_TEXT.off;
+      $("model-chip").textContent = text;
+      $("model-chip").className = "chip" + (cls ? " " + cls : "");
+      if (c.model === "loading") setTimeout(loadConfig, 3000);
+    } catch (e) { $("model-chip").textContent = "AI-модель: неизвестно"; }
+  }
+  loadConfig();
 </script>
 </body>
 </html>

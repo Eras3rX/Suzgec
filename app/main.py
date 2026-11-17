@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import Counter
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
@@ -19,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.detector import detect, is_classified
+from app import ml_detector
 from app.llm import LLMError, ai_enabled, ask_llm
 from app.masker import mask, restore
 from app.ratelimit import RateLimiter
@@ -34,12 +36,19 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 limiter = RateLimiter(RATE_LIMIT_PER_MINUTE, 60.0)
 _log = logging.getLogger("suzgec")
 
-app = FastAPI(title="Süzgəc")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    ml_detector.start_background_load()  # модель грузится в фоне; пока она не готова, работают правила
+    yield
+
+
+app = FastAPI(title="Süzgəc", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Статистика — только счётчики по категориям, никаких текстов.
 _stats_lock = Lock()
 _category_counts: Counter = Counter()
+_source_counts: Counter = Counter()  # кто находил: rule / ai / rule+ai
 _totals: Counter = Counter()
 _daily = {"day": None, "count": 0}  # сколько раз сегодня (UTC) звали настоящий AI
 
@@ -112,7 +121,9 @@ def index():
 def check(body: TextIn):
     return {
         "blocked": is_classified(body.text),
-        "findings": [{"category": f.category, "start": f.start, "end": f.end} for f in detect(body.text)],
+        "findings": [
+            {"category": f.category, "start": f.start, "end": f.end, "source": f.source} for f in detect(body.text)
+        ],
     }
 
 
@@ -131,7 +142,7 @@ def _block_classified(text: str) -> None:
 @app.get("/api/config")
 def config():
     """Что доступно на этом сервере. Страница прячет режим «Встроенный AI», если ключа нет."""
-    return {"ai_available": ai_enabled()}
+    return {"ai_available": ai_enabled(), "model": ml_detector.status()}
 
 
 @app.post("/api/mask")
@@ -147,10 +158,11 @@ def mask_only(body: TextIn):
     with _stats_lock:
         _totals["requests"] += 1
         _category_counts.update(masked.counts)
+        _source_counts.update(masked.source_counts)
     return {
         "masked_text": masked.masked_text,
         "spans": [
-            {"label": s.label, "category": s.category, "start": s.start, "end": s.end}
+            {"label": s.label, "category": s.category, "start": s.start, "end": s.end, "source": s.source}
             for s in masked.spans
         ],
         "found": dict(masked.counts),
@@ -177,6 +189,7 @@ def chat(body: TextIn):
     with _stats_lock:
         _totals["requests"] += 1
         _category_counts.update(masked.counts)
+        _source_counts.update(masked.source_counts)
 
     return {
         "masked_text": masked.masked_text,
@@ -188,4 +201,4 @@ def chat(body: TextIn):
 @app.get("/api/stats")
 def stats():
     with _stats_lock:
-        return {"categories": dict(_category_counts), **dict(_totals)}
+        return {"categories": dict(_category_counts), "sources": dict(_source_counts), **dict(_totals)}

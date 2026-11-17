@@ -59,3 +59,36 @@ N17,ru,"Рабочее время с 09:00 до 18:00, обед с 13:00.",
 N18,az,Kod AZE-2024 formasında yazılır.,
 N19,ru,"Версия 3.11.4 установлена на сервере, порт 8000.",
 N20,az,İclas protokolu № 45/2024 imzalanıb.,
+P41,az,Müştəri Aytac Hüseynova zəng etdi.,AD=Aytac Hüseynova
+P42,az,Toğrul bəy iclasa gecikdi.,AD=Toğrul
+P43,az,Sifarişi Səməd Nərimanov təsdiqləyib.,AD=Səməd Nərimanov
+P44,az,Ruhiyyə xanım sənədləri imzaladı.,AD=Ruhiyyə
+P45,az,Direktor Fərid Əhmədov və mühasib Gülnarə Rzayeva iclasdadır.,AD=Fərid Əhmədov|AD=Gülnarə Rzayeva
+P46,az,Zəngi Zülfiyyə Abbasova cavablandırdı.,AD=Zülfiyyə Abbasova
+P47,ru,Клиент Orxan Mikayılov подал жалобу.,AD=Orxan Mikayılov
+P48,ru,Заявление подал Эльчин Алиев.,AD=Эльчин Алиев
+P49,az,"Ünvan: Bakı şəhəri, Nizami küçəsi 45, mənzil 12.","ADRES=Bakı şəhəri, Nizami küçəsi 45, mənzil 12"
+P50,az,"Yaşayış ünvanı: Gəncə şəhəri, Atatürk prospekti 120, mənzil 7.","ADRES=Gəncə şəhəri, Atatürk prospekti 120, mənzil 7"
+P51,az,"Çatdırılma Sumqayıt şəhəri, Heydər Əliyev prospekti 34 ünvanına edilsin.","ADRES=Sumqayıt şəhəri, Heydər Əliyev prospekti 34"
+P52,az,"Mənzil Xırdalan şəhəri, Cəfər Cabbarlı küçəsi 8 ünvanındadır.","ADRES=Xırdalan şəhəri, Cəfər Cabbarlı küçəsi 8"
+P53,ru,"Адрес: Баку, улица Низами, дом 45, кв. 12.","ADRES=Баку, улица Низами, дом 45, кв. 12"
+P54,az,Doğum tarixi: 12.05.1990.,TARIX=12.05.1990
+P55,az,Müştəri 1990-05-12 tarixində anadan olub.,TARIX=1990-05-12
+P56,az,Pasport 03.11.2018 tarixində verilib.,TARIX=03.11.2018
+P57,ru,"Дата рождения: 07.09.1985, место рождения Баку.",TARIX=07.09.1985
+P58,az,Müqavilə 15.03.2024 tarixində imzalanıb.,TARIX=15.03.2024
+P59,az,Doğum tarixi 3 mart 1985-ci il.,TARIX=3 mart 1985
+P60,az,"Rəşad Vəliyev, FİN 5ARZ8D2, ünvan: Bakı şəhəri, Nizami küçəsi 45.","AD=Rəşad Vəliyev|FIN=5ARZ8D2|ADRES=Bakı şəhəri, Nizami küçəsi 45"
+P61,ru,"Сотрудник Aytac Quliyeva, тел. 055 321 45 67, родилась 21.04.1992.",AD=Aytac Quliyeva|TEL=055 321 45 67|TARIX=21.04.1992
+P62,az,"Hörmətli Toğrul Məmmədov, hesabınız AZ21NABZ00000000137010001944 ünvanına köçürüldü.",AD=Toğrul Məmmədov|IBAN=AZ21NABZ00000000137010001944
+P63,az,"Şəxsin adı Kamran Əliyev, doğum tarixi 14.08.1979, e-poçt kamran.aliyev@example.az.",AD=Kamran Əliyev|TARIX=14.08.1979|EMAIL=kamran.aliyev@example.az
+N21,az,"Bakı Azərbaycanın paytaxtıdır, Gəncə isə ikinci böyük şəhərdir.",
+N22,az,Sifariş 45 nömrəli məhsulla bağlıdır.,
+N23,az,Heydər Əliyev prospekti Bakının ən uzun küçələrindəndir.,
+N24,az,"Hesabat 2024-cü il üçün hazırlanıb, iclas saat 14:30-da başlayacaq.",
+N25,az,"Qiymət 45 manat, çatdırılma 2 gün çəkir.",
+N26,az,Sənəd 12 səhifədən ibarətdir və 3 bölməyə bölünüb.,
+N27,az,"Müəllim şagirdlərə riyaziyyat mövzusunu izah etdi, sonra sual-cavab oldu.",
+N28,ru,"Совещание в Баку прошло успешно, участвовали 25 человек.",
+N29,az,"Salam, necəsiniz? Bu gün iş günüdür.",
+N30,ru,"Проект завершён, отчёт отправлен руководителю.",

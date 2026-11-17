@@ -22,6 +22,7 @@ class Span:
     category: str
     start: int
     end: int
+    source: str = "rule"  # кто нашёл: rule / ai / rule+ai
 
 
 @dataclass
@@ -30,6 +31,7 @@ class MaskResult:
     mapping: dict[str, str] = field(default_factory=dict)  # "[FIN_1]" -> исходное значение
     counts: Counter = field(default_factory=Counter)  # категория -> сколько найдено
     spans: list[Span] = field(default_factory=list)
+    source_counts: Counter = field(default_factory=Counter)  # источник -> сколько найдено
 
 
 def mask(text: str) -> MaskResult:
@@ -47,7 +49,8 @@ def mask(text: str) -> MaskResult:
             result.mapping[label] = f.value
         label = value_to_label[key]
         result.counts[f.category] += 1
-        result.spans.append(Span(label, f.category, f.start, f.end))
+        result.source_counts[f.source] += 1
+        result.spans.append(Span(label, f.category, f.start, f.end, f.source))
         parts.append(text[pos:f.start])
         parts.append(label)
         pos = f.end

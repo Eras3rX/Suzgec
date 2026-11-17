@@ -1,0 +1,7 @@
+# Необязательные зависимости локальной AI-модели (имена, адреса, даты).
+# Без них сайт работает на правилах. Установка: pip install -r requirements-ai.txt
+# Проверено на: torch 2.15.0 (CPU), transformers 5.23.0, numpy 2.4.6.
+torch>=2.5
+transformers>=4.48   # с 4.48 есть ModernBERT
+numpy>=1.26
+safetensors>=0.4

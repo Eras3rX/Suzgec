@@ -112,6 +112,20 @@
       eq(r.unknown, ["[AD_1]"]); eq(r.restored, 0);
     });
 
+    test("метки адреса и даты (ADRES, TARIX) восстанавливаются, AD не путается с ADRES", () => {
+      const m = { "[AD_1]": "Aytac", "[ADRES_1]": "Bakı, Nizami küçəsi 45", "[TARIX_1]": "12.05.1990" };
+      const r = restoreAnswer("[AD_1] живёт: [ADRES_1], родилась [TARIX_1].", m);
+      eq(r.text, "Aytac живёт: Bakı, Nizami küçəsi 45, родилась 12.05.1990.");
+      eq(r.restored, 3); eq(r.warnings, []);
+    });
+
+    test("испорченные ADRES/TARIX замечаются", () => {
+      const m = { "[ADRES_1]": "Bakı, Nizami küçəsi 45", "[TARIX_1]": "12.05.1990" };
+      const r = restoreAnswer("Адрес [adres 1], дата TARIX_1.", m);
+      eq(r.altered.map((a) => a.guess), ["[ADRES_1]", "[TARIX_1]"]);
+      eq(r.restored, 0);
+    });
+
     // Вывод
     const ul = document.getElementById("results");
     let failed = 0;
