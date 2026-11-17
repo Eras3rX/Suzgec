@@ -337,6 +337,82 @@ def _classify_ocr(text: str) -> str | None:
     return classify(fixed)
 
 
+_CARD_LABELS = {  # подписи полей на удостоверении -> категория значения под подписью
+    "soyadi": ("AD", 1), "adi": ("AD", 1), "atasininadi": ("AD", 1), "anasininadi": ("AD", 1),
+    "dogulduguyervatarix": ("ADRES", 2),
+}
+_MRZ_NAMES = re.compile(r"[A-Z]<[A-Z]{3}([A-Z]+)<<([A-Z]+)")
+_FOLD_LETTERS = str.maketrans({"ə": "e", "Ə": "e", "ı": "i", "İ": "i"})
+
+
+def _letters(text: str) -> str:
+    """Только латинские буквы без диакритики и регистра: «Atasının adı» -> «atasininadi»."""
+    import unicodedata
+    plain = unicodedata.normalize("NFKD", text.translate(_FOLD_LETTERS))
+    return "".join(c for c in plain.lower() if "a" <= c <= "z")
+
+
+def _similar(a: str, b: str) -> float:
+    import difflib
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def _label_of(item: Item):
+    key = _letters(item.text)
+    if key in _CARD_LABELS:
+        return _CARD_LABELS[key]
+    if len(key) >= 6:  # OCR путает буквы («Sovadi»): сравниваем нестрого, но только длинные подписи
+        for name, value in _CARD_LABELS.items():
+            if len(name) >= 6 and _similar(key, name) >= 0.8:
+                return value
+    return None
+
+
+def _layout_findings(pages_items: list[list[Item]], text: str, pos_of: dict) -> list:
+    """Значения, которые детектор не узнал по виду, но которые понятны по макету удостоверения:
+    строка под подписью «Soyadı / Adı / Atasının adı / Doğulduğu yer və tarix», а также имя и фамилия,
+    повторённые в машиночитаемой зоне. Работает только для распознанных (OCR) страниц."""
+    from app.detector import Finding
+    extra: list = []
+
+    def add(p: int, k: int, category: str, lo: int = 0, hi: int | None = None) -> None:
+        item = pages_items[p][k]
+        hi = len(item.text) if hi is None else hi
+        if hi - lo < 2 or (p, k, lo) not in pos_of or (p, k, hi - 1) not in pos_of:
+            return
+        start, end = pos_of[(p, k, lo)], pos_of[(p, k, hi - 1)] + 1
+        extra.append(Finding(category, start, end, text[start:end]))
+
+    names: list[str] = []
+    m = _MRZ_NAMES.search(text.upper())
+    if m:
+        names = [_letters(m.group(1)), _letters(m.group(2))]
+
+    for p, items in enumerate(pages_items):
+        if not any(it.ocr for it in items):
+            continue
+        for i, label in enumerate(items):
+            spec = _label_of(label)
+            if spec:
+                category, count = spec
+                lb = label.box
+                h = max(10.0, lb[3] - lb[1])
+                below = sorted((it.box[1], j) for j, it in enumerate(items)
+                               if j != i and _label_of(it) is None and "<" not in it.text
+                               and lb[1] + 0.4 * h <= it.box[1] <= lb[3] + 3.2 * h and abs(it.box[0] - lb[0]) <= 3 * h)
+                for _, j in below[:count]:
+                    add(p, j, category)
+        if names:
+            for k, it in enumerate(items):
+                if "<" in it.text:
+                    continue
+                for w in re.finditer(r"\S+", it.text):
+                    word = _letters(w.group())
+                    if len(word) >= 4 and any(_similar(word, n) >= 0.75 for n in names if len(n) >= 4):
+                        add(p, k, "AD", w.start(), w.end())
+    return extra
+
+
 def _finish_text(pages_items, doc_pages_regions_fn):
     """Склеить текст, проверить гриф, замаскировать. Возвращает (text, masked, per-page regions, blocked)."""
     text, owner = _build_text(pages_items)
@@ -344,7 +420,11 @@ def _finish_text(pages_items, doc_pages_regions_fn):
     blocked = _classify_ocr(text) if ocr_used else classify(text)
     if blocked:
         return text, None, None, blocked
-    masked = mask(text)
+    extra = []
+    if ocr_used:
+        pos_of = {key: pos for pos, key in enumerate(owner) if key[1] >= 0 and key[2] >= 0}
+        extra = _layout_findings(pages_items, text, pos_of)
+    masked = mask(text, extra)
     return text, masked, _regions_from_spans(masked.spans, owner, pages_items), None
 
 

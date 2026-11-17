@@ -34,13 +34,32 @@ class MaskResult:
     source_counts: Counter = field(default_factory=Counter)  # источник -> сколько найдено
 
 
-def mask(text: str) -> MaskResult:
+def _with_extra(text: str, found: list, extra: list) -> list:
+    """Добавить дополнительные находки (например, значения по подписям полей на документе).
+    Они слабее обычных: на уже найденное не накладываются."""
+    from app.detector import Finding
+    out = list(found)
+    for e in sorted(extra, key=lambda f: f.start):
+        hit = [f for f in out if not (e.end <= f.start or e.start >= f.end)]
+        if not hit:
+            out.append(e)
+        elif all(f.category == e.category for f in hit):  # то же самое, но шире («RAMIZ» -> «RAMIZ OGLU»): расширяем
+            start, end = min(e.start, *(f.start for f in hit)), max(e.end, *(f.end for f in hit))
+            out = [f for f in out if f not in hit]
+            out.append(Finding(e.category, start, end, text[start:end], hit[0].source))
+    return sorted(out, key=lambda f: f.start)
+
+
+def mask(text: str, extra: list | None = None) -> MaskResult:
     result = MaskResult(masked_text="")
     value_to_label: dict[tuple[str, str], str] = {}
     per_category: Counter = Counter()
     parts: list[str] = []
     pos = 0
-    for f in detect(text):
+    findings = detect(text)
+    if extra:
+        findings = _with_extra(text, findings, extra)
+    for f in findings:
         key = (f.category, f.value)
         if key not in value_to_label:  # одинаковое значение — одинаковая метка
             per_category[f.category] += 1

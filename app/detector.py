@@ -140,6 +140,13 @@ _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _IBAN = re.compile(r"(?<![A-Za-z0-9])AZ\d{2} ?[A-Z]{4}(?: ?\d{4}){5}(?![A-Za-z0-9])")
 _CARD = re.compile(r"(?<!\d)(?:\d{4}[ -]?){3}\d{4}(?!\d)")
 _ID = re.compile(r"(?<![A-Za-z0-9])(?:AZE\d{8}|AA\d{7})(?![A-Za-z0-9])")
+# На самой карточке серия и номер написаны через знак номера: «AZE N° 16858801», «AZE №16858801».
+# После OCR слово «Seriya» часто склеено с серией, поэтому перед AZE границу не требуем, когда знак номера есть.
+_ID_CARD = re.compile(r"(?<![A-Za-z0-9])AZE\s?(?:N\s?[°º#oO0]?|№)?\s?\d{8}(?!\d)|AZE\s?(?:N\s?[°º#]?|№)\s?\d{8}(?!\d)")
+# Машиночитаемая зона (MRZ) внизу удостоверения: в ней имя, фамилия, номер и дата рождения. Строки из A-Z, 0-9 и «<».
+_MRZ_LINE1 = re.compile(r"(?<![A-Z0-9<])[A-Z]<[A-Z]{3}[A-Z0-9<]{10,}(?![A-Z0-9<])")
+_MRZ_LINE2 = re.compile(r"(?<![A-Z0-9<])\d{8,9}<\d?[A-Z]{3}\d{6}[A-Z0-9<]{3,}(?![A-Z0-9<])")
+_MRZ_ANY = re.compile(r"(?<![A-Z0-9<])(?=[A-Z0-9<]*(?:<[A-Z0-9<]*){3})[A-Z0-9<]{25,}(?![A-Z0-9<])")
 # VÖEN берём только рядом со словом VÖEN; значением считается сами 10 цифр.
 # Допускаем «VÖEN-i:», «VÖEN организации:» — до двух слов между словом VÖEN и цифрами.
 _VOEN = re.compile(
@@ -494,6 +501,11 @@ def _regex_hits(t: str) -> list[_Hit]:
         hits.append(("ID", m.start(), m.end(), False))
     for m in _ID_T.finditer(t):
         hits.append(("ID", m.start(), m.end(), True))
+    for m in _ID_CARD.finditer(t):
+        hits.append(("ID", m.start(), m.end(), False))
+    for pattern in (_MRZ_LINE1, _MRZ_LINE2, _MRZ_ANY):
+        for m in pattern.finditer(t):
+            hits.append(("ID", m.start(), m.end(), False))
 
     for m in _VOEN.finditer(t):
         hits.append(("VOEN", m.start(1), m.end(1), False))

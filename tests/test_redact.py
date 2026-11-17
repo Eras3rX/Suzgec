@@ -178,6 +178,39 @@ def test_image_signature_zone_is_tight_and_frame_is_kept():
     assert out.getpixel((60, 480)) == (255, 255, 255)  # пустое место внизу карточки не закрашено
 
 
+LAYOUT_LINES = ["Seriya AZE N 12345678", "Soyadi", "QULIYEVA", "Adi", "AYSEL", "Atasinin adi", "RAMIZ OGLU",
+                "I<AZEQULIYEVA<<AYSEL<<<<<<<<<<<<<<<", "12345678<3AZE9001019F25010125NFMSGB0"]
+
+
+def test_id_card_layout_series_mrz_and_values_under_labels():
+    """Как на настоящем удостоверении: серия через знак номера, значения под подписями, MRZ внизу."""
+    result = redact.redact_file(make_card(lines=LAYOUT_LINES, signature=False, size=(1000, 640)))
+    masked = result.masked.masked_text
+    for secret in ("12345678", "QULIYEVA", "AYSEL", "RAMIZ", "MSGB0", "<<"):
+        assert secret not in masked, (secret, masked)
+    assert result.counts.get("ID", 0) >= 3 and result.counts.get("AD", 0) >= 2
+    again = redact._ocr_items(Image.open(io.BytesIO(result.data)))
+    joined = "".join(item.text for item in again)
+    for secret in ("QULIYEVA", "AYSEL", "<<"):
+        assert secret not in joined, secret
+
+
+def test_names_repeated_from_mrz_are_found_even_if_label_is_missing():
+    # подписи «Adi» нет, но имя повторено в MRZ: находим по совпадению (нестрогому: OCR ошибается в буквах)
+    lines = ["QULIYEVA", "AYSEL", "I<AZEQULIYEVA<<AYSEL<<<<<<<<<<<<<<<"]
+    masked = redact.redact_file(make_card(lines=lines, signature=False)).masked.masked_text
+    assert "QULIYEVA" not in masked and "AYSEL" not in masked
+
+
+def test_label_matching_is_fuzzy_but_not_loose():
+    item = lambda text: redact.Item(text, (0, 0, 10, 10), "\n", ocr=True)  # noqa: E731
+    assert redact._label_of(item("Sovadi")) is not None        # OCR: y -> v
+    assert redact._label_of(item("Atasinin adi")) is not None
+    assert redact._label_of(item("Dogulduguyervatarix")) is not None
+    assert redact._label_of(item("Telefon")) is None
+    assert redact._label_of(item("Soyad nomresi 123")) is None
+
+
 def test_image_without_signature_word_is_not_painted():
     result = redact.redact_file(make_card(lines=["Bu gun hava yaxsidir."], signature=True))
     assert not result.counts.get("IMZA")

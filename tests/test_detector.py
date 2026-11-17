@@ -30,6 +30,26 @@ def test_id_card_both_formats():
     assert values("AZE12345678 и AA1234567", "ID") == ["AZE12345678", "AA1234567"]
 
 
+def test_id_card_series_with_number_sign():
+    # на самой карточке серия и номер идут через знак номера; после OCR «Seriya» бывает склеено с серией
+    assert values("Seriya AZE N° 12345678", "ID") == ["AZE N° 12345678"]
+    assert values("Seriya AZE №12345678.", "ID") == ["AZE №12345678"]
+    assert values("SeriyaAZEN#12345678", "ID") == ["AZEN#12345678"]
+    assert values("AZE 1234567", "ID") == []  # цифр мало
+
+
+MRZ_1 = "I<AZEQULIYEVA<<AYSEL<<<<<<<<<<<<<<<"
+MRZ_2 = "12345678<3AZE9001019F25010125NFMSGB0"
+
+
+def test_mrz_lines_of_id_card_are_found():
+    assert values(f"{MRZ_1}\n{MRZ_2}", "ID") == [MRZ_1, MRZ_2]
+
+
+def test_mrz_does_not_fire_on_ordinary_text():
+    assert cats("A<B и x < y, HTML <div><span> LONGTOKENWITHOUTANYSPECIALSIGNS") == []
+
+
 def test_voen_only_with_context():
     assert values("VÖEN: 1234567890", "VOEN") == ["1234567890"]
     assert values("VOEN 1234567890", "VOEN") == ["1234567890"]
