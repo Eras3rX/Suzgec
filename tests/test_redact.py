@@ -195,6 +195,54 @@ def test_id_card_layout_series_mrz_and_values_under_labels():
         assert secret not in joined, secret
 
 
+BILINGUAL_LINES = ["SOYADI / SURNAME", "DAVIS", "ADI / GIVEN NAME", "RACHEL", "ATASININ ADI / PATRONYMIC", "MEHEMMED QIZI",
+                   "DOGULDUGU TARIX / DATE OF BIRTH", "05.04.1991", "VESIQENIN NOMRESI / CARD NO", "TC1234567"]
+
+
+def test_bilingual_labels_names_dates_and_card_number():
+    """Фото нового образца: подписи на двух языках, латинские имена, номер карточки «TC1234567»."""
+    result = redact.redact_file(make_card(lines=BILINGUAL_LINES, signature=False, size=(1000, 700)))
+    masked = result.masked.masked_text
+    for secret in ("DAVIS", "RACHEL", "MEHEMMED", "05.04.1991", "TC1234567"):
+        assert secret not in masked, (secret, masked)
+    assert {"AD", "TARIX", "ID"} <= set(result.counts)
+
+
+def test_patronymic_line_is_a_name_even_without_label():
+    masked = redact.redact_file(make_card(lines=["Bu gun hava yaxsidir.", "MEHEMMED QIZI"], signature=False)).masked.masked_text
+    assert "MEHEMMED" not in masked and "hava" in masked  # обычная строка рядом не закрашена
+
+
+def test_word_matching_tolerates_ocr_mistakes():
+    assert redact._contains_word("ninimzasiholierssioatuee", "imza", 0.99)
+    assert redact._contains_word("ninaolpatronim", "patronim")
+    assert redact._contains_word("hodlerssignature", "signature")
+    assert not redact._contains_word("telefon", "surname")
+
+
+def test_signature_is_found_when_label_is_garbled_at_native_scale(monkeypatch):
+    """Метка «İmza» на мелком фото читается нестабильно: если на исходном масштабе её нет, пробуем другие."""
+    img = Image.open(io.BytesIO(make_card(lines=["SOYADI / SURNAME", "DAVIS", "Imza:"])))
+    first = [it for it in redact._ocr_items(img) if "imza" not in redact._letters(it.text)]  # «прочитали» без метки
+    boxes = redact._signature_label_boxes(img, first)
+    assert boxes  # метка найдена на другом масштабе
+    x0, y0, x1, y1 = boxes[0]
+    assert 100 < y0 < 250  # там, где она нарисована (третья строка), а не где-то ещё
+
+
+def test_extra_ocr_passes_only_for_id_like_pages():
+    img = Image.open(io.BytesIO(make_card(lines=["Bu gun hava yaxsidir."], signature=False)))
+    items = redact._ocr_items(img)
+    calls = []
+    real = redact._ocr_items
+    redact._ocr_items = lambda im: calls.append(im.size) or real(im)
+    try:
+        assert redact._signature_label_boxes(img, items) == []
+    finally:
+        redact._ocr_items = real
+    assert calls == []  # обычная страница: дополнительных проходов OCR нет
+
+
 def test_names_repeated_from_mrz_are_found_even_if_label_is_missing():
     # подписи «Adi» нет, но имя повторено в MRZ: находим по совпадению (нестрогому: OCR ошибается в буквах)
     lines = ["QULIYEVA", "AYSEL", "I<AZEQULIYEVA<<AYSEL<<<<<<<<<<<<<<<"]

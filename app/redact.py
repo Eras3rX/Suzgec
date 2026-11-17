@@ -229,18 +229,57 @@ def _find_faces(img, text_boxes) -> list[Region]:
     return regions
 
 
+def _contains_word(key: str, word: str, threshold: float = 0.8) -> bool:
+    """Есть ли слово в строке букв, с допуском на ошибки OCR (одна-две буквы)."""
+    if word in key:
+        return True
+    n = len(word)
+    for size in (n - 1, n, n + 1):
+        for i in range(0, max(0, len(key) - size) + 1):
+            if _similar(key[i:i + size], word) >= threshold:
+                return True
+    return False
+
+
+def _signature_label_boxes(img, items: list[Item]) -> list[tuple[float, float, float, float]]:
+    """Где на странице подпись-метка «İmza» / «Signature». Мелкая двуязычная надпись на фото читается нестабильно,
+    поэтому, если на исходном масштабе метки нет, пробуем уменьшенное и увеличенное изображение."""
+    def from_items(its, scale=1.0):
+        found = []
+        for it in its:
+            key = _letters(it.text)
+            if _contains_word(key, "imza", 0.99) or _contains_word(key, "signature", 0.8) or _contains_word(key, "podpis", 0.85):
+                found.append(tuple(c / scale for c in it.box))
+        return found
+
+    labels = from_items(items)
+    # Лишние проходы OCR только для страниц, похожих на удостоверение (есть подписи полей): иначе каждый документ
+    # без подписи тратил бы на них в три раза больше времени.
+    if labels or min(img.size) < 200 or not any(_label_of(it) for it in items):
+        return labels
+    from PIL import Image
+    for scale in (0.5, 2.0):
+        w, h = round(img.width * scale), round(img.height * scale)
+        if w * h > MAX_PIXELS or min(w, h) < 100:
+            continue
+        labels = from_items(_ocr_items(img.resize((w, h), Image.LANCZOS)), scale)
+        if labels:
+            return labels
+    return []
+
+
 def _find_signatures(img, items: list[Item]) -> list[Region]:
     """Грубая эвристика: «чернила» рядом со словом İmza / Signature, не принадлежащие другим строкам текста."""
     import cv2
     import numpy as np
-    labels = [it for it in items if any(w in it.text.lower().replace("i̇", "i") for w in _SIGNATURE_WORDS)]
+    labels = _signature_label_boxes(img, items)
     if not labels:
         return []
     gray = np.array(img.convert("L"))
     H, W = gray.shape
     regions = []
     for label in labels:
-        x0, y0, x1, y1 = label.box
+        x0, y0, x1, y1 = label
         h = max(10.0, y1 - y0)
         rx0, rx1 = max(0, int(x0 - h)), min(W, int(x1 + 12 * h))
         ry0, ry1 = max(0, int(y0 - 1.5 * h)), min(H, int(y1 + 4 * h))
@@ -357,14 +396,31 @@ def _similar(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
+# Ключевые слова двуязычных подписей на удостоверении («SOYADI / SURNAME», «CARD NO», «DATE OF BIRTH»…):
+# слово -> (категория значения под подписью, сколько строк под подписью). Порог нестрогого сравнения — для OCR.
+_CARD_WORDS = [
+    ("surname", "AD", 1), ("givenname", "AD", 1), ("patronymic", "AD", 1), ("patronim", "AD", 1), ("atasininadi", "AD", 1),
+    ("dateofbirth", "TARIX", 1), ("dateofexpiry", "TARIX", 1), ("cardno", "ID", 1), ("personalno", "FIN", 1),
+]
+
+
 def _label_of(item: Item):
-    key = _letters(item.text)
+    """Подпись поля на документе: (категория значения под ней, число строк) или None.
+    Подпись — это короткая строка без значения: «Soyadı: Quliyeva» (значение уже в строке) подписью не считается."""
+    text = item.text
+    after_colon = text.split(":", 1)[1] if ":" in text else ""
+    if len(_letters(after_colon)) >= 2 or any(c.isdigit() for c in text) or len(text) > 60:
+        return None
+    key = _letters(text)
     if key in _CARD_LABELS:
         return _CARD_LABELS[key]
     if len(key) >= 6:  # OCR путает буквы («Sovadi»): сравниваем нестрого, но только длинные подписи
         for name, value in _CARD_LABELS.items():
             if len(name) >= 6 and _similar(key, name) >= 0.8:
                 return value
+        for word, category, count in _CARD_WORDS:
+            if _contains_word(key, word, 0.75 if len(word) >= 8 else 0.8):
+                return (category, count)
     return None
 
 
@@ -391,17 +447,31 @@ def _layout_findings(pages_items: list[list[Item]], text: str, pos_of: dict) -> 
     for p, items in enumerate(pages_items):
         if not any(it.ocr for it in items):
             continue
+        specs = [_label_of(it) for it in items]
         for i, label in enumerate(items):
-            spec = _label_of(label)
-            if spec:
-                category, count = spec
+            if specs[i]:
+                category, count = specs[i]
                 lb = label.box
                 h = max(10.0, lb[3] - lb[1])
                 below = sorted((it.box[1], j) for j, it in enumerate(items)
-                               if j != i and _label_of(it) is None and "<" not in it.text
+                               if j != i and specs[j] is None and "<" not in it.text
                                and lb[1] + 0.4 * h <= it.box[1] <= lb[3] + 3.2 * h and abs(it.box[0] - lb[0]) <= 3 * h)
                 for _, j in below[:count]:
                     add(p, j, category)
+        for k, it in enumerate(items):
+            # Отчество «… QIZI / OGLU»: строка из имени и этих слов — имя, даже если подпись над ней не прочитана.
+            key = _letters(it.text)
+            if len(key) >= 7 and (key.endswith("qizi") or key.endswith("oglu")) and specs[k] is None and "<" not in it.text:
+                add(p, k, "AD")
+        if sum(1 for s in specs if s) >= 2:
+            # Страница похожа на удостоверение (несколько подписей полей): любая дата дд.мм.гггг на ней личная
+            # (рождение, выдача, окончание), а код из букв и семи-восьми цифр («TC1234567») — номер карточки,
+            # даже если подпись над ними OCR не прочитал.
+            for k, it in enumerate(items):
+                for m in re.finditer(r"(?<!\d)\d{2}[./-]\d{2}[./-]\d{4}(?!\d)", it.text):
+                    add(p, k, "TARIX", m.start(), m.end())
+                for m in re.finditer(r"(?<![A-Za-z0-9])[A-Z]{2,3}\d{7,8}(?!\d)", it.text):
+                    add(p, k, "ID", m.start(), m.end())
         if names:
             for k, it in enumerate(items):
                 if "<" in it.text:
