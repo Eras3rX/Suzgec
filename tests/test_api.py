@@ -2,7 +2,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import MAX_TEXT_LENGTH, app
+from app.main import MAX_TEXT_LENGTH, app, limiter
 
 client = TestClient(app)
 
@@ -11,6 +11,7 @@ client = TestClient(app)
 def demo_mode(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     # load_dotenv() мог подтянуть ключ из реального .env — для тестов он не нужен.
+    limiter.reset()
 
 
 def test_index_page_served():
@@ -49,11 +50,16 @@ def test_chat_blocks_classified_text():
     assert "1A2B3C4" not in r.text
 
 
-def test_text_too_long_and_empty_rejected_without_echo():
-    for bad in ("", "x" * (MAX_TEXT_LENGTH + 1)):
-        r = client.post("/api/chat", json={"text": bad})
-        assert r.status_code == 422
-        assert "1 до" in r.json()["detail"]
+def test_text_too_long_gives_clear_error():
+    r = client.post("/api/chat", json={"text": "x" * (MAX_TEXT_LENGTH + 1)})
+    assert r.status_code == 413
+    assert "слишком длинный" in r.json()["detail"] and str(MAX_TEXT_LENGTH) in r.json()["detail"]
+
+
+def test_empty_text_gives_clear_error():
+    r = client.post("/api/chat", json={"text": ""})
+    assert r.status_code == 422
+    assert "не должен быть пустым" in r.json()["detail"]
 
 
 def test_stats_contain_only_counters():
