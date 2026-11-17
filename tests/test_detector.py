@@ -101,3 +101,24 @@ def test_overlap_iban_wins_over_digits():
     iban = make_iban()
     result = detect(f"Hesab {iban}")
     assert [f.category for f in result] == ["IBAN"]
+
+
+# ---------- Регрессии по замеру точности (tests/eval.py) ----------
+
+
+def test_voen_with_suffix_or_words_before_number():
+    assert values("Şirkətin VÖEN-i: 1402938475 -dir.", "VOEN") == ["1402938475"]
+    assert values("VÖEN организации: 1700456231.", "VOEN") == ["1700456231"]
+
+
+def test_sku_like_code_is_not_fin():
+    assert "FIN" not in cats("Артикул ABC1234 есть на складе.")
+
+
+def test_weak_surname_suffix_alone_is_not_a_name():
+    assert "AD" not in cats("Əlaqəli şöbə ilə danışın.")
+    assert "AD" not in cats("Sürətli çatdırılma iki gün çəkir.")
+
+
+def test_cyrillic_name():
+    assert values("Заявление подал Руслан Гасанов.", "AD") == ["Руслан Гасанов"]

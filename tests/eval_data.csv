@@ -1,0 +1,61 @@
+id,lang,text,expected
+P01,az,Müraciət edənin FİN kodu 7K3M9PQ -dir.,FIN=7K3M9PQ
+P02,ru,"Мой ФИН 2BX4T91, прошу проверить заявку.",FIN=2BX4T91
+P03,az,"Sənəddə FİN: 5ARZ8D2 göstərilib, tel 055 321 45 67.",FIN=5ARZ8D2|TEL=055 321 45 67
+P04,ru,Сотрудник с FIN 9D1F6GH оформил отпуск.,FIN=9D1F6GH
+P05,az,FİN 3X7Y2ZA və FİN 8M4N6PB eyni şəxsə aiddir.,FIN=3X7Y2ZA|FIN=8M4N6PB
+P06,az,Şəxsiyyət vəsiqəsinin nömrəsi AZE04512367 olaraq qeyd edilib.,ID=AZE04512367
+P07,ru,"Номер удостоверения личности AZE19876543, выдано в Баку.",ID=AZE19876543
+P08,az,"Vəsiqə seriyası AA3456781 -dir, FİN 4H8J2KL.",ID=AA3456781|FIN=4H8J2KL
+P09,ru,Паспорт AA7120934 просрочен.,ID=AA7120934
+P10,az,AZE55501234 nömrəli vəsiqə itib.,ID=AZE55501234
+P11,az,Şirkətin VÖEN-i: 1402938475 -dir.,VOEN=1402938475
+P12,ru,VÖEN организации: 1700456231.,VOEN=1700456231
+P13,az,VÖEN 9901234567 ilə qeydiyyatdan keçib.,VOEN=9901234567
+P14,ru,"Контрагент, VOEN 3300112244, задолжал 5000 манат.",VOEN=3300112244
+P15,az,Ödəniş AZ21NABZ00000000137010001944 hesabına köçürülsün.,IBAN=AZ21NABZ00000000137010001944
+P16,ru,Переведите на IBAN AZ50AIIB38010000123456789012 до пятницы.,IBAN=AZ50AIIB38010000123456789012
+P17,az,Hesab nömrəsi: AZ25 IBAZ 4005 0000 9876 5432 1098 (Test Bank).,IBAN=AZ25 IBAZ 4005 0000 9876 5432 1098
+P18,ru,"Реквизиты: IBAN AZ91PAHA11120000456789012345, получатель Elvin Məmmədov.",IBAN=AZ91PAHA11120000456789012345|AD=Elvin Məmmədov
+P19,az,Kart nömrəm 5412 7534 9012 3457 -dır.,KART=5412 7534 9012 3457
+P20,ru,Оплата картой 4276-1234-5678-9014 прошла успешно.,KART=4276-1234-5678-9014
+P21,az,Kartın nömrəsi 4000123456789017.,KART=4000123456789017
+P22,ru,"Карта 5200 1234 9876 5434 заблокирована, звоните +994 12 345 67 89.",KART=5200 1234 9876 5434|TEL=+994 12 345 67 89
+P23,az,Mənimlə +994 55 321 45 67 nömrəsi ilə əlaqə saxlayın.,TEL=+994 55 321 45 67
+P24,ru,Позвоните по номеру 050 765 43 21 после обеда.,TEL=050 765 43 21
+P25,az,Tel: +994702345678,TEL=+994702345678
+P26,ru,"Телефон: 070-234-56-78, звонить до 18:00.",TEL=070-234-56-78
+P27,az,Əlaqə üçün +994 (51) 234 56 78 nömrəsinə zəng edin.,TEL=+994 (51) 234 56 78
+P28,ru,Номер 099 876 54 32 принадлежит клиенту.,TEL=099 876 54 32
+P29,az,Məktubu aysel.aliyeva@example.az ünvanına göndərin.,EMAIL=aysel.aliyeva@example.az
+P30,ru,"Пишите на r_mammadov88@mail.example.com, отвечу быстро.",EMAIL=r_mammadov88@mail.example.com
+P31,az,"E-poçt: info@company-test.az, VÖEN: 1500987654.",EMAIL=info@company-test.az|VOEN=1500987654
+P32,ru,Мой email: nigar.h@example.org.,EMAIL=nigar.h@example.org
+P33,az,"Salam, mənim adım Fidan Quliyeva.",AD=Fidan Quliyeva
+P34,ru,"Заявление подал Orxan Babayev, прошу рассмотреть.",AD=Orxan Babayev
+P35,az,Direktor Tural Həsənov iclasa gecikdi.,AD=Tural Həsənov
+P36,az,Hüseyn Cəfərov Əli oğlu 1985-ci ildə anadan olub.,AD=Hüseyn Cəfərov Əli oğlu
+P37,ru,"Клиент Günel Rzayeva обратилась в банк, FIN 6P2Q8RS.",AD=Günel Rzayeva|FIN=6P2Q8RS
+P38,az,Müştəri Səbinə İsmayılova ilə görüşdük.,AD=Səbinə İsmayılova
+P39,ru,"Заявление подал Руслан Гасанов, прошу рассмотреть.",AD=Руслан Гасанов
+P40,az,Layihə rəhbəri Mahir Ağayev təyin olundu.,AD=Mahir Ağayev
+N01,az,"Bu gün hava çox gözəldir, iclas saat üçdədir.",
+N02,ru,"Совещание перенесено на 15:30, зал 204.",
+N03,az,Sifariş nömrəsi 1234567890 təsdiqləndi.,
+N04,ru,Артикул ABC1234 есть на складе.,
+N05,az,Layihənin büdcəsi 25 000 manatdır.,
+N06,az,Telefon nömrələri 050 ilə başlayır.,
+N07,ru,"В 2024 году выручка выросла на 12,5%.",
+N08,az,Cihazın seriya nömrəsi 1234 5678 9012 3457 -dır.,
+N09,ru,Позвоните в 102 или 112 при чрезвычайной ситуации.,
+N10,az,Bakı şəhəri Azərbaycanın paytaxtıdır.,
+N11,ru,Ссылка на документ: example.com/docs/report.,
+N12,az,Müəllim şagirdlərə yeni mövzu izah etdi.,
+N13,az,Əlaqəli şöbə ilə danışın.,
+N14,az,Sürətli çatdırılma iki gün çəkir.,
+N15,ru,Директор объявил о начале проекта.,
+N16,az,"Ödəniş 15 mart tarixində edilib, məbləğ 300 AZN.",
+N17,ru,"Рабочее время с 09:00 до 18:00, обед с 13:00.",
+N18,az,Kod AZE-2024 formasında yazılır.,
+N19,ru,"Версия 3.11.4 установлена на сервере, порт 8000.",
+N20,az,İclas protokolu № 45/2024 imzalanıb.,

@@ -12,6 +12,7 @@ python -m venv .venv
 pip install -r requirements.txt
 copy .env.example .env      # ключ API необязателен: без него работает демо-режим
 python -m pytest            # тесты
+python tests/eval.py        # замер точности детектора (tests/eval_data.csv)
 python -m uvicorn app.main:app --reload
 ```
 

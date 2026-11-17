@@ -56,7 +56,12 @@ _IBAN = re.compile(r"(?<![A-Za-z0-9])AZ\d{2} ?[A-Z]{4}(?: ?\d{4}){5}(?![A-Za-z0-
 _CARD = re.compile(r"(?<!\d)(?:\d{4}[ -]?){3}\d{4}(?!\d)")
 _ID = re.compile(r"(?<![A-Za-z0-9])(?:AZE\d{8}|AA\d{7})(?![A-Za-z0-9])")
 # VÖEN берём только рядом со словом VÖEN; значением считается сами 10 цифр.
-_VOEN = re.compile(r"(?i:V[ÖO]EN)\s*[:№#\-]?\s*(\d{10})(?!\d)")
+# Допускаем «VÖEN-i:», «VÖEN организации:» — до двух слов между словом VÖEN и цифрами.
+_VOEN = re.compile(
+    r"(?i:V[ÖO]EN)(?:-?\w{1,2})?[\s:№#\-]*(?:[^\W\d_]+[\s:№#\-]+){0,2}(\d{10})(?!\d)"
+)
+# Артикулы вида ABC1234 (буквы, затем только цифры) — не FİN: слишком похоже на коды товаров.
+_SKU_LIKE = re.compile(r"[A-Z]{1,4}\d{3,6}")
 _PHONE = re.compile(
     r"(?<![\w+])(?:"
     r"\+994[\s-]?\(?\d{2}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}"
@@ -79,46 +84,65 @@ FIRST_NAMES = {
     "Mehriban", "Anar", "Elnur", "Nurlan", "Kənan", "İlqar", "Rəşid", "Məmməd",
     "Aygün", "Arzu", "Səbuhi", "Eldar", "Fuad", "Könül", "Lamiyə", "Nailə",
     "Pərvin", "Ramiz", "Səidə", "Tahir", "Vüqar", "Zəhra", "Elçin", "Namiq",
+    "Mahir", "Rəsul", "Fərhad", "Cəmil", "Şahin", "Nicat", "Rövşən", "Vaqif",
+    "Kamil", "Ələsgər", "Əhməd", "Əziz", "Bəxtiyar", "Cəlal", "Mübariz",
+    "Natiq", "Oqtay", "Rafiq", "Sabir", "Teymur", "Ülvi", "Vahid", "Yaşar",
+    "İlkin", "Elşən", "Ayşən", "Gülşən", "Mətanət", "Nərgiz", "Sevda", "Təranə",
+    "Ülkər", "İradə", "Səadət", "Lalə", "Məryəm", "Aytən",
 }
-SURNAME_SUFFIXES = ("yeva", "yev", "ova", "ov", "li")
-PATRONYMIC_WORDS = {"oğlu", "qızı"}
+# То же для русского текста (кириллица).
+FIRST_NAMES_CYR = {
+    "Руслан", "Эльвин", "Айсель", "Нигяр", "Фидан", "Тураль", "Орхан", "Рашад",
+    "Самир", "Лейла", "Камран", "Фарид", "Мурад", "Анар", "Эльнур", "Заур",
+    "Эмин", "Расим", "Гюнель", "Айгюн", "Мехрибан", "Кямран", "Тахир",
+}
+# Сильные суффиксы: слово с таким окончанием считаем фамилией и без имени рядом.
+STRONG_SURNAME_SUFFIXES = ("yeva", "yev", "ova", "ov")
+# Слабые: слишком часто встречаются в обычных словах («Əlaqəli», «Сурков»…),
+# поэтому считаем фамилией, только если рядом стоит имя или сильная фамилия.
+WEAK_SURNAME_SUFFIXES = ("li", "ова", "ов", "ева", "ев")
+PATRONYMIC_WORDS = {"oğlu", "qızı", "оглы", "кызы"}
 MIN_SURNAME_LEN = 5
 
 _WORD = re.compile(r"\w+")
 
 
 def _find_names(text: str) -> list[Finding]:
-    # 1. Помечаем каждое слово: это часть имени или нет.
-    tokens: list[tuple[int, int, bool]] = []
-    prev_is_name = False
+    # 1. Помечаем каждое слово: first / strong / weak / patr — или None (не имя).
+    tokens: list[tuple[int, int, str | None]] = []
+    prev_kind: str | None = None
     for m in _WORD.finditer(text):
         word = m.group()
-        is_name = False
-        if word in FIRST_NAMES:
-            is_name = True
-        elif word[0].isupper() and len(word) >= MIN_SURNAME_LEN and word.endswith(SURNAME_SUFFIXES):
-            is_name = True
-        elif word in PATRONYMIC_WORDS and prev_is_name:
-            is_name = True
-        tokens.append((m.start(), m.end(), is_name))
-        prev_is_name = is_name
+        kind: str | None = None
+        if word in FIRST_NAMES or word in FIRST_NAMES_CYR:
+            kind = "first"
+        elif word[0].isupper() and len(word) >= MIN_SURNAME_LEN:
+            if word.endswith(STRONG_SURNAME_SUFFIXES):
+                kind = "strong"
+            elif word.endswith(WEAK_SURNAME_SUFFIXES):
+                kind = "weak"
+        elif word in PATRONYMIC_WORDS and prev_kind is not None:
+            kind = "patr"  # «oğlu»/«qızı» бывают только после имени
+        tokens.append((m.start(), m.end(), kind))
+        prev_kind = kind
 
     # 2. Склеиваем соседние слова-имена (через пробел) в одно ФИО.
-    findings: list[Finding] = []
-    group_start = group_end = None
-    for start, end, is_name in tokens:
-        if is_name and group_start is not None and text[group_end:start].strip(" \t") == "" and start > group_end:
-            group_end = end
+    groups: list[tuple[int, int, set[str]]] = []
+    for start, end, kind in tokens:
+        if kind is None:
             continue
-        if group_start is not None:
-            findings.append(Finding("AD", group_start, group_end, text[group_start:group_end]))
-            group_start = group_end = None
-        if is_name:
-            group_start, group_end = start, end
-    if group_start is not None:
-        findings.append(Finding("AD", group_start, group_end, text[group_start:group_end]))
-    # Одиночные «oğlu»/«qızı» без имени рядом не бывают: они помечаются только после имени.
-    return findings
+        if groups and start > groups[-1][1] and text[groups[-1][1]:start].strip(" \t") == "":
+            g_start, _, kinds = groups[-1]
+            groups[-1] = (g_start, end, kinds | {kind})
+        else:
+            groups.append((start, end, {kind}))
+
+    # 3. ФИО должно содержать имя из словаря или сильную фамилию.
+    return [
+        Finding("AD", s, e, text[s:e])
+        for s, e, kinds in groups
+        if kinds & {"first", "strong"}
+    ]
 
 
 # ---------- Основные функции ----------
@@ -141,7 +165,8 @@ def _regex_findings(text: str) -> list[Finding]:
     for m in _PHONE.finditer(text):
         found.append(Finding("TEL", m.start(), m.end(), m.group()))
     for m in _FIN.finditer(text):
-        found.append(Finding("FIN", m.start(), m.end(), m.group()))
+        if not _SKU_LIKE.fullmatch(m.group()):
+            found.append(Finding("FIN", m.start(), m.end(), m.group()))
     return found
 
 
